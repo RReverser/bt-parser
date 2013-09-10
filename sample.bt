@@ -1,17 +1,19 @@
 uint smth = a;
-uint smth2 = 123;
-uint a = b = c = 123;
-f(1, g());
-int x;
-struct Point {
-	int x[];
-	int y;
-	int z[10];
-	int t[y];
+Bitfield( 1, 2, Number(smth) );
+typedef unsigned int x;
+struct Struct {
+	x = a;
 };
-enum MYENUM { COMP_1, COMP_2 = 5, COMP_3 };
-bool true = 2 < 3;
-bool false = 9 > 8;
-int smth3 = smth2 + 19;
-int smth4 = smth2 + 1 + smth3;
-bool or = true || false;
+typedef struct {
+	y = b;
+} Struct2;
+union Union {
+	x = 7;
+};
+union myUnion {
+	ushort s;
+	double d;
+	int    i;
+} u;
+const int x = 5;
+enum MYENUM { COMP_1, COMP_2 = 5, COMP_3 } var1;

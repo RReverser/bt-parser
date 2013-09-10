@@ -1,52 +1,49 @@
-{
-  function join(nameParts) {
-    return nameParts instanceof Array ? nameParts.map(join).join('') : nameParts;
-  }
-}
-
 start = block
 
 space = [ \t\n\r]+
 eol = ";" space?
-number = all:(("0x" [0-9A-Fa-f]+) / [0-9]+) {
-	return Number(join(all));
+hex_number = "0x" number:[0-9A-F]i+ { return parseInt(number.join(''), 16) }
+oct_number = "0" number:[0-7]+ { return parseInt(number.join(''), 8) }
+bin_number = "0b" number:[01]+ { return parseInt(number.join(''), 2) }
+dec_number = number:[0-9]+ { return parseInt(number.join(''), 10) }
+number = hex_number / bin_number / oct_number / dec_number
+name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* {
+	return prefix + main.join('');
 }
-name = all:([A-Za-z_][A-Za-z_0-9]*) {
-	return join(all);
+assignment = name:name space? "=" space? expr:expression {
+	return {_type: 'assignment', name: name, expr: expr};
 }
-assignment = name:name repeat:("[" number:bin_operation? "]" { return number !== '' ? number : Infinity })? space? expr:("=" expr:bin_operation { return expr })? {
-	var obj = {name: name};
-	if (repeat) {
-		obj.repeat = repeat;
+args = args:(space? expr:expression space? "," { return expr })* lastArg:expression? space? {
+	if (lastArg) {
+		args.push(lastArg);
 	}
-	if (expr) {
-		obj.expr = expr;
-	}
-	return obj;
-}
-bin_operation = left:expression space? op:(("<" / ">") "="? / "==" / "+" / "-" / "*" / "/" / "%" / "<<" / ">>" / "^" / "&&" / "||" / "&" / "|") space? right:bin_operation {
-	return {left: left, op: join(op), right: right};
-} / expression
-type = typedef / name
-typedef = struct / enum
-var = type:type space expr:assignment {
-	return {type: type, expr: expr};
-}
-args = args:(expr:bin_operation "," { return expr })* lastArg:bin_operation? {
-	args.push(lastArg);
 	return args;
 }
-call = name:name space? "(" args:args ")" {
-	return {name: name, args: args};
+call = name:name "(" args:args ")" {
+	return {_type: 'call', name: name, args: args};
 }
-expression = space? expr:(call / assignment / number) { return expr }
-statement = space? stmt:(typedef / call / var) eol { return stmt }
+type = struct / enum / (prefix:(("unsigned" / "const") space)? type:name { return prefix + type })
+var_init = type:type space assignment:assignment {
+	assignment._type = 'var';
+	assignment.type = type;
+	return assignment;
+}
+var_simple = type:type space name:name {
+	return {_type: 'var', name: name, type: type};
+}
+var = var_init / var_simple
+struct = type:("struct" / "union") space name:name? block:bblock {
+	var res = {_type: type, block: block};
+	if (name) res.name = name;
+	return res;
+}
+enum = type:"enum" space name:name? space? "{" list:args "}" {
+	return {_type: type, name: name, list: list};
+}
+typedef = "typedef" space type:type space name:name {
+	return {_type: 'typedef', name: name, type: type};
+}
+expression = space? expr:(call / assignment / name / number) { return expr }
+statement = space? stmt:(typedef / var / enum / struct / expression) eol { return stmt }
 block = statement*
-wrapped_block = "{" block:block "}" { return block }
-struct = "struct" space name:name space? block:wrapped_block { return {name: name, block: block} }
-enum = "enum" space name:name space? "{" args:args "}" {
-	args.reduce(function (lastValue, arg) {
-		return 'expr' in arg ? arg.expr : (arg.expr = lastValue + 1);
-	}, -1);
-	return {name: name, enum: args};
-}
+bblock = space? "{" block:block "}" { return block }
