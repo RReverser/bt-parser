@@ -1,0 +1,20 @@
+{
+  "name": "bt-parser",
+  "description": "JS parser for 010 Editor Binary Templates",
+  "main": "parse.js",
+  "dependencies": {
+    "pegjs": "~0.7.0"
+  },
+  "scripts": {
+    "test": "node parse.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/RReverser/bt-parser.git"
+  },
+  "author": "Ingvar Stepanyan <me@rreverser.com>",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/RReverser/bt-parser/issues"
+  }
+}

@@ -1,0 +1,11 @@
+uint smth = a;
+uint smth2 = 123;
+uint a = b = c = 123;
+f(1, g());
+int x;
+struct Point {
+	int x[];
+	int y;
+	int z[10];
+};
+enum MYENUM { COMP_1, COMP_2 = 5, COMP_3 };
