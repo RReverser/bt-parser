@@ -14,7 +14,7 @@ number = all:(("0x" [0-9A-Fa-f]+) / [0-9]+) {
 name = all:([A-Za-z_][A-Za-z_0-9]*) {
 	return join(all);
 }
-assignment = name:name repeat:("[" number:number? "]" { return number !== '' ? number : Infinity })? space? expr:("=" expr:expression { return expr })? {
+assignment = name:name repeat:("[" number:bin_operation? "]" { return number !== '' ? number : Infinity })? space? expr:("=" expr:bin_operation { return expr })? {
 	var obj = {name: name};
 	if (repeat) {
 		obj.repeat = repeat;
@@ -24,12 +24,15 @@ assignment = name:name repeat:("[" number:number? "]" { return number !== '' ? n
 	}
 	return obj;
 }
+bin_operation = left:expression space? op:(("<" / ">") "="? / "==" / "+" / "-" / "*" / "/" / "%" / "<<" / ">>" / "^" / "&&" / "||" / "&" / "|") space? right:bin_operation {
+	return {left: left, op: join(op), right: right};
+} / expression
 type = typedef / name
 typedef = struct / enum
 var = type:type space expr:assignment {
 	return {type: type, expr: expr};
 }
-args = args:(expr:expression "," { return expr })* lastArg:expression? {
+args = args:(expr:bin_operation "," { return expr })* lastArg:bin_operation? {
 	args.push(lastArg);
 	return args;
 }
