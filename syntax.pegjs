@@ -1,7 +1,27 @@
-start = block
+{
+	var types = {};
+	function process(block) {
+		var context = {};
+		block.filter(Boolean).forEach(function (item) {
+			context[item.name] = item.type;
+		});
+		return context;
+	}
+	var autoIncrement = (function () {
+		var current = 0;
+		return function () { return current++ };
+	})();
+}
 
-space = [ \t\n\r]+
-eol = ";" space?
+start = block:block {
+	types['jBinary.all'] = process(block);
+	return types;
+}
+
+___char = [ \t\n\r]
+_ = ___char*
+__ = ___char+
+eol = ";" _
 
 hex_digit = [0-9A-F]i
 hex_number = "0x" number:hex_digit+ { return parseInt(number.join(''), 16) }
@@ -10,7 +30,7 @@ bin_number = "0b" number:[01]+ { return parseInt(number.join(''), 2) }
 dec_number = number:[0-9]+ { return parseInt(number.join(''), 10) }
 number = hex_number / bin_number / oct_number / dec_number
 
-string = '"' chars:char* '"' { return chars.join('') }
+string = '"' chars:char* '"' _ { return chars.join('') }
 char
   // In the original JSON grammar: "any-Unicode-character-except-"-or-\-or-control-character"
   = [^"\\\0-\x1F\x7f]
@@ -26,51 +46,72 @@ char
       return String.fromCharCode(parseInt(digits, 16));
     }
 
-name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* {
+name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ {
 	return prefix + main.join('');
 }
 
-assignment = name:name space? "=" space? expr:expression {
-	return {_type: 'assignment', name: name, expr: expr};
+ref = name:name index:("[" expr:expression? "]" _ { return expr !== '' ? expr : Infinity })? {
+	var res = {_type: 'ref', name: name};
+	if (index) {
+		res.index = index;
+	}
+	return res;
 }
 
-args = args:(space? expr:expression space? "," { return expr })* lastArg:expression? space? {
-	if (lastArg) {
-		args.push(lastArg);
+assignment = ref:ref "=" _ expr:expression {
+	return {_type: 'assignment', ref: ref, expr: expr};
+}
+
+struct = type:("struct" / "union") __ name:name? block:bblock {
+	block = process(block);
+	if (name) types[name] = block;
+	return type === 'struct' ? block : [type, block];
+}
+
+type = struct / prefix:(prefix:"unsigned" __ { return prefix })? name:name { return prefix + ' ' + name }
+expression = call / ref / string / number
+args = args:(ref:ref "," _ { return ref })* last:ref? {
+	if (last) {
+		args.push(last);
 	}
 	return args;
 }
-
-call = name:name "(" args:args ")" {
-	return {_type: 'call', name: name, args: args};
+call = name:name "(" _ args:args ")" _ {
+	return {_type: 'call', name: '_call_' + autoIncrement(), type: ['call', name, args]};
 }
-
-typedef = "typedef" space type:type space name:name {
-	return {_type: 'typedef', name: name, type: type};
-}
-
-struct = type:("struct" / "union") space name:name? block:bblock {
-	var res = {_type: type, block: block};
-	if (name) res.name = name;
-	return res;
-}
-enum = type:"enum" space name:name? space? "{" list:args "}" {
-	return {_type: type, name: name, list: list};
-}
-type = struct / enum / (prefix:(prefix:("unsigned" / "const") space { return prefix + ' ' })? type:name { return prefix + type })
-
-var = type:type space name:name repeat:(space? "[" expr:expression? "]" { return expr || Infinity })? initial:(space? "=" expr:expression { return expr })? {
-	var res = {_type: 'var', name: name, type: type};
-	if (repeat) {
-		res.repeat = repeat;
+var_file = type:type ref:ref {
+	var baseType = type;
+	if ('index' in ref) {
+		type = ['array', baseType];
+		if (ref.index !== Infinity) {
+			type.push(ref.index);
+		}
 	}
-	if (initial) {
-		res.initial = initial;
-	}
-	return res;
+	return {_type: 'var', name: ref.name, type: type};
 }
-
-expression = space? expr:(call / assignment / name:name { return {_type: 'ref', name: name} } / number / string) { return expr }
-statement = space? stmt:(typedef / var / enum / struct / expression) eol { return stmt }
+var_local = ("local" / "const") __ type:type ref:(assignment / ref) {
+	var baseType = type, value;
+	if (ref._type === 'assignment') {
+		value = ref.expr;
+		ref = ref.ref;
+	}
+	if ('index' in ref) {
+		type = ['array', baseType];
+		if (ref.index !== Infinity) {
+			type.push(ref.index);
+		}
+	}
+	type = ['local', type];
+	if (value !== undefined) {
+		if (value._type === 'call') {
+			type = value.type;
+		} else {
+			type.push(value);
+		}
+	}
+	return {_type: 'var', name: ref.name, type: type};
+}
+var = var_local / var_file
+statement = stmt:(var / struct {} / expression) eol { return stmt }
 block = statement*
-bblock = space? "{" block:block "}" { return block }
+bblock = "{" _ block:block "}" _ { return block }

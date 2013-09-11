@@ -1,22 +1,25 @@
-uint smth = a;
-Bitfield( 1, 2, Number(smth) );
-typedef unsigned int x;
-struct Struct {
-	x = a;
+LittleEndian();
+uint x;
+local uint y = 9;
+
+struct Point {
+	float x;
+	float y;
 };
-typedef struct {
-	y = b;
-} Struct2;
-union Union {
-	x = 7;
-};
-union myUnion {
-	ushort s;
-	double d;
-	int    i;
-	int infArray[];
-	int finArray[10];
-	string chars[15] = "my string";
-} u;
-const int x = 5;
-enum MYENUM { COMP_1, COMP_2 = 5, COMP_3 } var1;
+
+struct {
+	float x;
+	float y;
+} point[10];
+
+union {
+	struct {
+		uint8 hi;
+		uint8 lo;
+	} bytes;
+	uint16 word;
+} number;
+
+Point p[100];
+
+local uint8 b = ReadByte();

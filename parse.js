@@ -9,7 +9,11 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 	fs.writeFile('generated_parser.js', parser.toSource(), encoding);
 	fs.readFile('sample.bt', encoding, function (err, res) {
 		if (err) throw err;
-		var ast = parser.parse(res);
+		try {
+			var ast = parser.parse(res);
+		} catch (e) {
+			ast = e;
+		}
 		console.log(util.inspect(ast, {
 			depth: null,
 			colors: true
