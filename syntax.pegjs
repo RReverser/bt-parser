@@ -51,9 +51,10 @@ name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ {
 }
 
 ref = name:name index:("[" expr:expression? "]" _ { return expr !== '' ? expr : Infinity })? {
-	var res = {_type: 'ref', name: name};
-	if (index) {
+	var res = {_type: 'ref', name: name, type: ['ref', name]};
+	if (index !== '') {
 		res.index = index;
+		res.type.push(index);
 	}
 	return res;
 }
@@ -103,7 +104,7 @@ var_local = ("local" / "const") __ type:type ref:(assignment / ref) {
 	}
 	type = ['local', type];
 	if (value !== undefined) {
-		if (value._type === 'call') {
+		if (typeof value === 'object' && '_type' in value) {
 			type = value.type;
 		} else {
 			type.push(value);
