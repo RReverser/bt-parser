@@ -7,10 +7,11 @@ var PEG = require('pegjs'),
 fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 	if (err) throw err;
 	var parser = PEG.buildParser(peg);
-	fs.writeFile('generated_parser.js', parser.toSource(), encoding);
 	fs.readFile('sample.bt', encoding, function (err, res) {
 		if (err) throw err;
-		var js = parser.parse(res);
-		console.log(beautify(js));
+		var js = beautify(parser.parse(res));
+		console.log(js);
+		fs.writeFile('generated_sample.js', js, encoding);
 	});
+	fs.writeFile('generated_parser.js', parser.toSource(), encoding);
 });
