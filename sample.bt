@@ -23,3 +23,6 @@ union {
 Point p[100];
 
 local uint8 b = ReadByte();
+
+local string s1 = "some real string";
+local string s2 = s1;

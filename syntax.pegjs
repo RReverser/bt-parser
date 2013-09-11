@@ -68,7 +68,7 @@ struct = type:("struct" / "union") __ name:name? block:bblock {
 	return type === 'struct' ? block : [type, block];
 }
 
-type = struct / prefix:(prefix:"unsigned" __ { return prefix })? name:name { return prefix + ' ' + name }
+type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name { return prefix + name }
 expression = call / ref / string / number
 args = args:(ref:ref "," _ { return ref })* last:ref? {
 	if (last) {
