@@ -24,5 +24,7 @@ Point p[100];
 
 local uint8 b = ReadByte();
 
-local string s1 = "some real string";
+local string s1 = "some real \u0012 st\nring";
 local string c = s1[0];
+
+byte infinite[];

@@ -4,7 +4,8 @@
   "main": "parse.js",
   "version": "0.0.0",
   "dependencies": {
-    "pegjs": "~0.7.0"
+    "pegjs": "~0.7.0",
+    "js-beautify": "~1.4.0"
   },
   "scripts": {
     "test": "node parse.js"
