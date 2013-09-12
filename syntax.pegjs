@@ -17,10 +17,11 @@
 		js.column = column;
 		return js;
 	}
+	var wrapper_begin = 'function(){var __result={};with(__result){', wrapper_end = '}return __result;}';
 }
 
 start = block:block {
-	return ['(function () {var __result={},__types={};', block, 'return __result;})()'];
+	return ['(' + wrapper_begin, block, wrapper_end + ')()'];
 }
 
 space_char = [ \t\n\r]
@@ -82,7 +83,7 @@ struct = type:("struct" / "union") __ name:name? block:bblock {
 			return (index ? 'binary.seek(__start);' : '') + stmt;
 		}));
 	}
-	return customType(name, 'jBinary.Type({read:function(){var __result={};' + block.join('') + 'return __result;}})');
+	return customType(name, 'jBinary.Type({read:' + wrapper_begin + block.join('') + wrapper_end + '})');
 }
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name {
@@ -100,7 +101,7 @@ call = name:name "(" _ args:args ")" _ {
 	return 'std010.' + name + '.call(' + ['binary'].concat(args) + ')';
 }
 var_file = type:type ref:ref {
-	return 'var ' + ref.name + '=__result.' + ref.name + '=binary.read(' + (
+	return '__result.' + ref.name + '=binary.read(' + (
 		'index' in ref
 		? '["array",' + type + (ref.index ? ',' + ref.index : '') + ']'
 		: type

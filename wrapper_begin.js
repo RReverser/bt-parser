@@ -7,3 +7,4 @@ var std010 = {
 var binary = new jBinary(1024, {
 	uint: 'uint32'
 });
+var __types = {};
