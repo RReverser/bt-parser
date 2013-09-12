@@ -1,12 +1,27 @@
 {
-	var isCustomType = {};
+	var customTypes = {}, mappings = [];
 	function customType(name, definition) {
-		isCustomType[name] = true;
-		return (name ? 'var ' + name + '=' : '') + definition;
+		customTypes[name] = true;
+		return (name ? '__types.' + name + '=' : '') + definition;
+	}
+	function map(line, column, js) {
+		if (typeof js !== 'object') {
+			js = {
+				value: js,
+				toString: function () {
+					return this.value.toString();
+				}
+			};
+		}
+		js.line = line;
+		js.column = column;
+		return js;
 	}
 }
 
-start = block:block { return 'var __result={};' + block.join('') }
+start = block:block {
+	return ['(function () {var __result={},__types={};', block, 'return __result;})()'];
+}
 
 space_char = [ \t\n\r]
 _ = space_char*
@@ -58,7 +73,7 @@ indexed = name:name index:("[" expr:expression? "]" { return expr }) {
 ref = indexed / name
 
 assignment = ref:ref "=" _ expr:expression {
-	return ref + ' = ' + expr;
+	return ref + '=' + expr;
 }
 
 struct = type:("struct" / "union") __ name:name? block:bblock {
@@ -72,7 +87,7 @@ struct = type:("struct" / "union") __ name:name? block:bblock {
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name {
 	name = prefix + name;
-	return name in isCustomType ? name : JSON.stringify(name);
+	return name in customTypes ? '__types.' + name : JSON.stringify(name);
 }
 expression = call / ref / string / number
 args = args:(ref:ref "," _ { return ref })* last:ref? {
@@ -82,10 +97,10 @@ args = args:(ref:ref "," _ { return ref })* last:ref? {
 	return args;
 }
 call = name:name "(" _ args:args ")" _ {
-	return 'std010.' + name + '(' + ['binary'].concat(args) + ')';
+	return 'std010.' + name + '.call(' + ['binary'].concat(args) + ')';
 }
 var_file = type:type ref:ref {
-	return 'var ' + ref.name + '=result.' + ref.name + '=binary.read(' + (
+	return 'var ' + ref.name + '=__result.' + ref.name + '=binary.read(' + (
 		'index' in ref
 		? '["array",' + type + (ref.index ? ',' + ref.index : '') + ']'
 		: type
@@ -95,6 +110,6 @@ var_local = ("local" / "const") __ type:type ref:(assignment / ref) {
 	return 'var ' + ref;
 }
 var = var_local / var_file
-statement = stmt:(var / struct / expression) eol { return stmt + ';' }
+statement = stmt:(var / struct / expression) eol { return map(line, column, stmt + ';') }
 block = stmts:statement* { return stmts }
 bblock = "{" _ block:block "}" _ { return block }
