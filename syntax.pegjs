@@ -1,27 +1,82 @@
 {
-	var customTypes = {}, mappings = [];
-	function customType(name, definition) {
-		customTypes[name] = true;
-		return (name ? '__types.' + name + '=' : '') + definition;
+	var customTypes = {};
+
+	function def(type, args, init) {
+		var constructor = function () {
+			if (!(this instanceof constructor)) {
+				return (new constructor).set(arguments);
+			}
+			this.set(arguments);
+		};
+		constructor.prototype = {
+			type: type,
+			init: init || function(){},
+			defaults: args || [],
+			set: function (args) {
+				this.defaults.forEach(function (key) {
+					this[key] = args[i];
+				}, this);
+				this.init();
+				return this;
+			}
+		};
+		return constructor;
 	}
-	function map(line, column, js) {
-		if (typeof js !== 'object') {
-			js = {
-				value: js,
-				toString: function () {
-					return this.value.toString();
+
+	var id = def('Identifier', ['name']);
+	var member = def('MemberExpression', ['object', 'property']);
+	var literal = def('Literal', ['value']);
+	var obj = def('ObjectExpression', ['properties']);
+	var prop = def('Property', ['key', 'value']);
+	var vars = def('VariableDeclaration', ['vars']);
+
+	function vars(vars) {
+		return {
+			type: 'VariableDeclaration',
+			declarations: Object.keys(vars).map(function (name) {
+				return {
+					type: 'VariableDeclarator',
+					id: prop(name),
+					init: vars[name]
 				}
-			};
-		}
-		js.line = line;
-		js.column = column;
-		return js;
+			}),
+			kind: 'var'
+		};
 	}
-	var wrapper_begin = 'function(){var __result={};with(__result){', wrapper_end = '}return __result;}';
+
+	function set(left, right) {
+		return {
+			type: 'AssignmentExpression',
+			left: left,
+			operator: '=',
+			right: right
+		};
+	}
+
+	function call(ref) {
+		return {
+			type: 'CallExpression',
+			callee: typeof ref === 'string' ? prop.apply(null, ref.split('.')) : ref,
+			arguments: Array.prototype.slice.call(arguments, 1)
+		};
+	}
 }
 
 start = block:block {
-	return ['(' + wrapper_begin, block, wrapper_end + ')()'];
+	return {
+		type: 'Program',
+		body: [
+			vars({
+				$RESULT: val({}),
+				$TYPES: val({})
+			}),
+			{
+				type: 'WithStatement',
+				object: prop('$RESULT'),
+				body: block
+			}
+		]
+	};
 }
 
 space_char = [ \t\n\r]
@@ -30,13 +85,14 @@ __ = space_char+
 eol = ";" _
 
 hex_digit = [0-9A-F]i
+
 hex_number = "0x" number:hex_digit+ { return parseInt(number.join(''), 16) }
 oct_number = "0" number:[0-7]+ { return parseInt(number.join(''), 8) }
 bin_number = "0b" number:[01]+ { return parseInt(number.join(''), 2) }
 dec_number = number:[0-9]+ { return parseInt(number.join(''), 10) }
-number = hex_number / bin_number / oct_number / dec_number
 
-string = '"' chars:char* '"' _ { return JSON.stringify(chars.join('')) }
+number = number:(hex_number / bin_number / oct_number / dec_number) { return val(number) }
+
 char
   // In the original JSON grammar: "any-Unicode-character-except-"-or-\-or-control-character"
   = [^"\\\0-\x1F\x7f]
@@ -49,68 +105,139 @@ char
   / "\\r"  { return "\r"; }
   / "\\t"  { return "\t"; }
   / "\\u" digits:(hex_digit hex_digit hex_digit hex_digit) {
-      return String.fromCharCode(parseInt(digits.join(''), 16));
-    }
+	  return String.fromCharCode(parseInt(digits.join(''), 16));
+	}
 
-name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ {
-	return {
-		name: prefix + main.join(''),
-		toString: function () {
-			return this.name;
-		}
-	};
-}
+string = '"' chars:char* '"' _ { return val(chars.join('')) }
+
+name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ { return prop(prefix + main.join('')) }
 
 indexed = name:name index:("[" expr:expression? "]" { return expr }) {
-	return {
-		name: name,
-		index: index,
-		toString: function () {
-			return this.name + '[' + this.index + ']';
-		}
-	};
+	var result = prop(name, index);
+	result.computed = true;
+	return result;
 }
 
 ref = indexed / name
 
-assignment = ref:ref "=" _ expr:expression {
-	return ref + '=' + expr;
-}
+assignment = ref:ref "=" _ expr:expression { return set(ref, expr) }
 
 struct = type:("struct" / "union") __ name:name? block:bblock {
 	if (type === 'union') {
-		block = ['var __start=binary.tell();'].concat(block.map(function (stmt, index) {
-			return (index ? 'binary.seek(__start);' : '') + stmt;
-		}));
+		var newBody = [vars({
+			$START: call('binary.tell')
+		})];
+
+		var seekBack = {
+			type: 'ExpressionStatement',
+			expression: call('binary.seek', prop('$START'))
+		};
+
+		block.body.forEach(function (stmt, index) {
+			if (index > 0) newBody.push(seekBack);
+			newBody.push(stmt);
+		});
+
+		block.body = newBody;
 	}
-	return customType(name, 'jBinary.Type({read:' + wrapper_begin + block.join('') + wrapper_end + '})');
+
+	block.body = [
+		vars({
+			$RESULT: val({})
+		}),
+		{
+			type: 'WithStatement',
+			object: prop('$RESULT'),
+			body: {
+				type: 'BlockStatement',
+				body: block.body
+			}
+		},
+		{
+			type: 'ReturnStatement',
+			argument: prop('$RESULT')
+		}
+	];
+
+	var expression = call('jBinary.Type', val({
+		read: {
+			type: 'FunctionExpression',
+			params: [],
+			body: block
+		}
+	}));
+
+	if (name) {
+		expression = set(customTypes[name.name] = prop('$TYPES', name), expression);
+	}
+
+	return expression;
 }
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name {
-	name = prefix + name;
-	return name in customTypes ? '__types.' + name : JSON.stringify(name);
+	name = prefix + name.name;
+	return customTypes[name] || {type: 'Literal', value: name};
 }
+
 expression = call / ref / string / number
+
 args = args:(ref:ref "," _ { return ref })* last:ref? {
-	if (last) {
-		args.push(last);
-	}
+	if (last) args.push(last);
 	return args;
 }
-call = name:name "(" _ args:args ")" _ {
-	return 'std010.' + name + '.call(' + ['binary'].concat(args) + ')';
+
+call = ref:ref "(" _ args:args ")" _ {
+	args.unshift(prop('binary'));
+
+	return {
+		type: 'CallExpression',
+		callee: prop(ref, 'call'),
+		arguments: args
+	};
 }
+
 var_file = type:type ref:ref {
-	return '__result.' + ref.name + '=binary.read(' + (
-		'index' in ref
-		? '["array",' + type + (ref.index ? ',' + ref.index : '') + ']'
-		: type
-	) + ')'
+	return set(prop('$RESULT', ref.type === 'MemberExpression' ? ref.object : ref), {
+		type: 'CallExpression',
+		callee: prop('binary', 'read'),
+		arguments: [
+			ref.type === 'MemberExpression'
+			? {
+				type: 'ArrayExpression',
+				elements: [
+					val('array'),
+					type,
+					ref.property || prop('undefined')
+				]
+			}
+			: type
+		]
+	});
 }
-var_local = ("local" / "const") __ type:type ref:(assignment / ref) {
-	return 'var ' + ref;
+
+var_local = kind:("local" / "const") __ type:type ref:(assignment / ref) {
+	return {
+		type: 'VariableDeclaration',
+		declarations: [{
+			type: 'VariableDeclarator',
+			id: ref.type === 'AssignmentExpression' ? ref.left : ref,
+			init: ref.right
+		}],
+		kind: 'var'
+	};
 }
+
 var = var_local / var_file
-statement = stmt:(var / struct / expression) eol { return map(line, column, stmt + ';') }
-block = stmts:statement* { return stmts }
+
+statement = stmt:(var / struct / expression) eol {
+	return /Expression$/.test(stmt.type) ? {type: 'ExpressionStatement', expression: stmt} : stmt;
+}
+
+block = stmts:statement* {
+	return {
+		type: 'BlockStatement',
+		body: stmts
+	};
+}
+
 bblock = "{" _ block:block "}" _ { return block }

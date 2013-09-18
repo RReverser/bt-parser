@@ -1,8 +1,8 @@
 var PEG = require('pegjs'),
-	beautify = require('js-beautify').js_beautify,
 	SourceNode = require('source-map').SourceNode,
 	fs = require('fs'),
 	util = require('util'),
+	escodegen = require('escodegen'),
 	encoding = {encoding: 'utf-8'};
 
 fs.readFile('syntax.pegjs', encoding, function (err, peg) {
@@ -19,6 +19,10 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 	fs.readFile(srcFilename, encoding, function (err, res) {
 		if (err) throw err;
 		var parsed = parser.parse(res);
+		fs.writeFile(destFilename + 'on', JSON.stringify(parsed, null, 2), encoding, function () {
+			fs.writeFile(destFilename, escodegen.generate(parsed), encoding);
+		});
+		/*
 		var node = new SourceNode(null, null, null, '');
 		node.add(fs.readFileSync('wrapper_begin.js', encoding));
 		node.add((function mapper(stmt) {
@@ -30,6 +34,7 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 		});
 		fs.writeFile(destFilename, output.code + '\n//# sourceMappingURL=' + destMapFilename, encoding);
 		fs.writeFile(destMapFilename, output.map, encoding);
+		*/
 	});
 
 	fs.writeFile('parser.gen.js', parser.toSource(), encoding);
