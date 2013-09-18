@@ -1,82 +1,76 @@
 {
 	var customTypes = {};
 
-	function def(type, args, init) {
-		var constructor = function () {
-			if (!(this instanceof constructor)) {
-				return (new constructor).set(arguments);
+	function def(type, init, proto) {
+		function Class() {
+			var instance = Object.create(Class.prototype),
+				args = Array.prototype.slice.call(arguments),
+				init = instance.__init__;
+
+			switch (typeof init) {
+				case 'function':
+					init.apply(instance, args);
+					break;
+
+				case 'string':
+					instance[init] = args;
+					break;
+
+				default:
+					init.forEach(function (key, i) {
+						if (args[i] !== undefined) {
+							instance[key] = args[i];
+						}
+					});
+					break;
 			}
-			this.set(arguments);
-		};
-		constructor.prototype = {
-			type: type,
-			init: init || function(){},
-			defaults: args || [],
-			set: function (args) {
-				this.defaults.forEach(function (key) {
-					this[key] = args[i];
-				}, this);
-				this.init();
-				return this;
-			}
-		};
-		return constructor;
+
+			return instance;
+		}
+
+		Class.prototype = proto || {};
+		Class.prototype.type = type;
+		Class.prototype.constructor = Class
+		Class.prototype.__init__ = init;
+		Class.prototype.toString = function () { return '[' + this.type + ']' };
+
+		return Class;
 	}
 
+	var program = def('Program', 'body');
 	var id = def('Identifier', ['name']);
-	var member = def('MemberExpression', ['object', 'property']);
+	var member = def('MemberExpression', ['object', 'property', 'computed']);
 	var literal = def('Literal', ['value']);
-	var obj = def('ObjectExpression', ['properties']);
-	var prop = def('Property', ['key', 'value']);
-	var vars = def('VariableDeclaration', ['vars']);
-
-	function vars(vars) {
-		return {
-			type: 'VariableDeclaration',
-			declarations: Object.keys(vars).map(function (name) {
-				return {
-					type: 'VariableDeclarator',
-					id: prop(name),
-					init: vars[name]
-				}
-			}),
-			kind: 'var'
-		};
-	}
-
-	function set(left, right) {
-		return {
-			type: 'AssignmentExpression',
-			left: left,
-			operator: '=',
-			right: right
-		};
-	}
-
-	function call(ref) {
-		return {
-			type: 'CallExpression',
-			callee: typeof ref === 'string' ? prop.apply(null, ref.split('.')) : ref,
-			arguments: Array.prototype.slice.call(arguments, 1)
-		};
-	}
+	var obj = def('ObjectExpression', function () {
+		this.properties = Array.prototype.map.call(arguments, function (property) {
+			property.type = 'Property';
+			return property /* key, value */;
+		});
+	});
+	var assign = def('AssignmentExpression', ['left', 'right'], {operator: '='});
+	var call = def('CallExpression', ['callee', 'arguments'], {arguments: []});
+	var vars = def('VariableDeclaration', function () {
+		this.declarations = Array.prototype.map.call(arguments, function (declaration) {
+			declaration.type = 'VariableDeclarator';
+			return declaration /* id, init */;
+		});
+	}, {kind: 'var'});
+	var inContext = def('WithStatement', ['object', 'body']);
+	var stmt = def('ExpressionStatement', ['expression']);
+	var block = def('BlockStatement', 'body');
+	var ret = def('ReturnStatement', ['argument']);
+	var func = def('FunctionExpression', ['params', 'body']);
+	var array = def('ArrayExpression', 'elements');
 }
 
 start = block:block {
-	return {
-		type: 'Program',
-		body: [
-			vars({
-				$RESULT: val({}),
-				$TYPES: val({})
-			}),
-			{
-				type: 'WithStatement',
-				object: prop('$RESULT'),
-				body: block
-			}
-		]
-	};
+	return program(
+		vars(
+			{id: id('$RESULT'), init: obj()},
+			{id: id('$TYPES'), init: obj()}
+		),
+		inContext(id('$RESULT'), block)
+	);
 }
 
 space_char = [ \t\n\r]
@@ -91,7 +85,7 @@ oct_number = "0" number:[0-7]+ { return parseInt(number.join(''), 8) }
 bin_number = "0b" number:[01]+ { return parseInt(number.join(''), 2) }
 dec_number = number:[0-9]+ { return parseInt(number.join(''), 10) }
 
-number = number:(hex_number / bin_number / oct_number / dec_number) { return val(number) }
+number = number:(hex_number / bin_number / oct_number / dec_number) { return literal(number) }
 
 char
   // In the original JSON grammar: "any-Unicode-character-except-"-or-\-or-control-character"
@@ -108,75 +102,63 @@ char
 	  return String.fromCharCode(parseInt(digits.join(''), 16));
 	}
 
-string = '"' chars:char* '"' _ { return val(chars.join('')) }
+string = '"' chars:char* '"' _ { return literal(chars.join('')) }
 
-name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ { return prop(prefix + main.join('')) }
+name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ { return id(prefix + main.join('')) }
 
-indexed = name:name index:("[" expr:expression? "]" { return expr }) {
-	var result = prop(name, index);
-	result.computed = true;
-	return result;
-}
+indexed = name:name index:("[" expr:expression? "]" { return expr }) { return member(name, index, true) }
 
 ref = indexed / name
 
-assignment = ref:ref "=" _ expr:expression { return set(ref, expr) }
+assignment = ref:ref "=" _ expr:expression { return assign(ref, expr) }
 
-struct = type:("struct" / "union") __ name:name? block:bblock {
+struct = type:("struct" / "union") __ name:name? bblock:bblock {
 	if (type === 'union') {
-		var newBody = [vars({
-			$START: call('binary.tell')
-		})];
+		var newBody = [
+			vars({
+				id: id('$START'),
+				init: call(member(id('binary'), id('tell')))
+			})
+		];
 
-		var seekBack = {
-			type: 'ExpressionStatement',
-			expression: call('binary.seek', prop('$START'))
-		};
+		var seekBack = stmt(call(
+			member(id('binary'), id('seek')),
+			[id('$START')]
+		));
 
-		block.body.forEach(function (stmt, index) {
+		bblock.body.forEach(function (stmt, index) {
 			if (index > 0) newBody.push(seekBack);
 			newBody.push(stmt);
 		});
 
-		block.body = newBody;
+		bblock.body = newBody;
 	}
 
-	block.body = [
-		vars({
-			$RESULT: val({})
-		}),
-		{
-			type: 'WithStatement',
-			object: prop('$RESULT'),
-			body: {
-				type: 'BlockStatement',
-				body: block.body
-			}
-		},
-		{
-			type: 'ReturnStatement',
-			argument: prop('$RESULT')
-		}
-	];
+	debugger;
 
-	var expression = call('jBinary.Type', val({
-		read: {
-			type: 'FunctionExpression',
-			params: [],
-			body: block
-		}
-	}));
+	bblock = block(
+		vars({id: id('$RESULT'), init: obj()}),
+		inContext(id('$RESULT'), bblock),
+		ret(id('$RESULT'))
+	);
+
+	var expr = call(member(id('jBinary'), id('Type')), [
+		obj({
+			key: id('read'),
+			value: func([], bblock)
+		})
+	]);
 
 	if (name) {
-		expression = set(customTypes[name.name] = prop('$TYPES', name), expression);
+		expr = assign(customTypes[name.name] = member(id('$TYPES'), name), expr);
 	}
 
-	return expression;
+	return expr;
 }
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name {
 	name = prefix + name.name;
-	return customTypes[name] || {type: 'Literal', value: name};
+	return customTypes[name] || literal(name);
 }
 
 expression = call / ref / string / number
@@ -187,57 +169,35 @@ args = args:(ref:ref "," _ { return ref })* last:ref? {
 }
 
 call = ref:ref "(" _ args:args ")" _ {
-	args.unshift(prop('binary'));
-
-	return {
-		type: 'CallExpression',
-		callee: prop(ref, 'call'),
-		arguments: args
-	};
+	args.unshift(id('binary'));
+	return call(member(ref, id('call')), args);
 }
 
 var_file = type:type ref:ref {
-	return set(prop('$RESULT', ref.type === 'MemberExpression' ? ref.object : ref), {
-		type: 'CallExpression',
-		callee: prop('binary', 'read'),
-		arguments: [
-			ref.type === 'MemberExpression'
-			? {
-				type: 'ArrayExpression',
-				elements: [
-					val('array'),
-					type,
-					ref.property || prop('undefined')
-				]
-			}
-			: type
-		]
-	});
+	return assign(
+		member(id('$RESULT'), ref.type === 'MemberExpression' ? ref.object : ref),
+		call(
+			member(id('binary'), id('read')),
+			[ref.type === 'MemberExpression' ? array(literal('array'), type, ref.property || id('undefined')) : type]
+		)
+	);
 }
 
 var_local = kind:("local" / "const") __ type:type ref:(assignment / ref) {
-	return {
-		type: 'VariableDeclaration',
-		declarations: [{
-			type: 'VariableDeclarator',
-			id: ref.type === 'AssignmentExpression' ? ref.left : ref,
-			init: ref.right
-		}],
-		kind: 'var'
-	};
+	return vars({
+		id: ref.type === 'AssignmentExpression' ? ref.left : ref,
+		init: ref.right
+	});
 }
 
 var = var_local / var_file
 
-statement = stmt:(var / struct / expression) eol {
-	return /Expression$/.test(stmt.type) ? {type: 'ExpressionStatement', expression: stmt} : stmt;
+statement = expr:(var / struct / expression) eol {
+	return /Expression$/.test(expr.type) ? stmt(expr) : expr;
 }
 
 block = stmts:statement* {
-	return {
-		type: 'BlockStatement',
-		body: stmts
-	};
+	return block.apply(null, stmts);
 }
 
 bblock = "{" _ block:block "}" _ { return block }

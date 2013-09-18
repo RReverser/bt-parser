@@ -8,9 +8,13 @@ var PEG = require('pegjs'),
 fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 	if (err) throw err;
 	
-	var parser = PEG.buildParser(peg, {
-		trackLineAndColumn: true
-	});
+	try {
+		var parser = PEG.buildParser(peg, {
+			trackLineAndColumn: true
+		});
+	} catch (err) {
+		return console.error(err);
+	}
 	
 	var srcFilename = 'sample.bt',
 		destFilename = srcFilename.replace(/\.bt$/, '.gen.js'),
