@@ -80,10 +80,10 @@ eol = ";" _
 
 hex_digit = [0-9A-F]i
 
-hex_number = "0x" number:hex_digit+ { return parseInt(number.join(''), 16) }
-oct_number = "0" number:[0-7]+ { return parseInt(number.join(''), 8) }
-bin_number = "0b" number:[01]+ { return parseInt(number.join(''), 2) }
-dec_number = number:[0-9]+ { return parseInt(number.join(''), 10) }
+hex_number = "0x" number:$(hex_digit+) { return parseInt(number, 16) }
+oct_number = "0" number:$([0-7]+) { return parseInt(number, 8) }
+bin_number = "0b" number:$([01]+) { return parseInt(number, 2) }
+dec_number = number:$([0-9]+) { return parseInt(number, 10) }
 
 number = number:(hex_number / bin_number / oct_number / dec_number) { return literal(number) }
 
@@ -98,13 +98,13 @@ char
   / "\\n"  { return "\n"; }
   / "\\r"  { return "\r"; }
   / "\\t"  { return "\t"; }
-  / "\\u" digits:(hex_digit hex_digit hex_digit hex_digit) {
-	  return String.fromCharCode(parseInt(digits.join(''), 16));
+  / "\\u" digits:$(hex_digit hex_digit hex_digit hex_digit) {
+	  return String.fromCharCode(parseInt(digits, 16));
 	}
 
-string = '"' chars:char* '"' _ { return literal(chars.join('')) }
+string = '"' chars:$(char*) '"' _ { return literal(chars) }
 
-name = prefix:[A-Za-z_] main:[A-Za-z_0-9]* _ { return id(prefix + main.join('')) }
+name = name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name) }
 
 indexed = name:name index:("[" expr:expression? "]" { return expr }) { return member(name, index, true) }
 
@@ -175,17 +175,17 @@ call = ref:ref "(" _ args:args ")" _ {
 
 var_file = type:type ref:ref {
 	return assign(
-		member(id('$RESULT'), ref.type === 'MemberExpression' ? ref.object : ref),
+		member(id('$RESULT'), ref instanceof member ? ref.object : ref),
 		call(
 			member(id('binary'), id('read')),
-			[ref.type === 'MemberExpression' ? array(literal('array'), type, ref.property || id('undefined')) : type]
+			[ref instanceof member ? array(literal('array'), type, ref.property || id('undefined')) : type]
 		)
 	);
 }
 
 var_local = kind:("local" / "const") __ type:type ref:(assignment / ref) {
 	return vars({
-		id: ref.type === 'AssignmentExpression' ? ref.left : ref,
+		id: ref instanceof assign ? ref.left : ref,
 		init: ref.right
 	});
 }

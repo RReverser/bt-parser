@@ -40,6 +40,4 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 		fs.writeFile(destMapFilename, output.map, encoding);
 		*/
 	});
-
-	fs.writeFile('parser.gen.js', parser.toSource(), encoding);
 });
