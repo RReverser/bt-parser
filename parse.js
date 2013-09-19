@@ -17,27 +17,21 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 	}
 	
 	var srcFilename = 'sample.bt',
-		destFilename = srcFilename.replace(/\.bt$/, '.gen.js'),
-		destMapFilename = destFilename + '.map';
+		destFilename = srcFilename.replace(/\.bt$/, '.gen'),
+		destAstFilename = destFilename + '.json',
+		destJsFilename = destFilename + '.js',
+		destMapFilename = destJsFilename + '.map';
 
 	fs.readFile(srcFilename, encoding, function (err, res) {
 		if (err) throw err;
 		var parsed = parser.parse(res);
-		fs.writeFile(destFilename + 'on', JSON.stringify(parsed, null, 2), encoding, function () {
-			fs.writeFile(destFilename, escodegen.generate(parsed), encoding);
+		fs.writeFile(destAstFilename, JSON.stringify(parsed, null, 2), encoding, function () {
+			var generated = escodegen.generate(parsed, {
+				sourceMap: srcFilename,
+				sourceMapWithCode: true
+			});
+			fs.writeFile(destJsFilename, generated.code + '\n//# sourceMappingURL=' + destMapFilename, encoding);
+			fs.writeFile(destMapFilename, generated.map, encoding);
 		});
-		/*
-		var node = new SourceNode(null, null, null, '');
-		node.add(fs.readFileSync('wrapper_begin.js', encoding));
-		node.add((function mapper(stmt) {
-			return new SourceNode(stmt.line, stmt.column, srcFilename, stmt instanceof Array ? stmt.map(mapper) : stmt.toString());
-		})(parsed));
-		node.add(fs.readFileSync('wrapper_end.js', encoding));
-		var output = node.toStringWithSourceMap({
-			file: destMapFilename
-		});
-		fs.writeFile(destFilename, output.code + '\n//# sourceMappingURL=' + destMapFilename, encoding);
-		fs.writeFile(destMapFilename, output.map, encoding);
-		*/
 	});
 });
