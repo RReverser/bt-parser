@@ -30,7 +30,7 @@
 
 		Class.prototype = proto || {};
 		Class.prototype.type = type;
-		Class.prototype.constructor = Class
+		Class.prototype.constructor = Class;
 		Class.prototype.__init__ = init;
 		Class.prototype.toString = function () { return '[' + this.type + ']' };
 
@@ -106,7 +106,7 @@ string = '"' chars:$(char*) '"' _ { return literal(chars) }
 
 name = name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name) }
 
-indexed = name:name index:("[" expr:expression? "]" { return expr }) { return member(name, index, true) }
+indexed = name:name index:("[" expr:expression? "]" _ { return expr }) { return member(name, index, true) }
 
 ref = indexed / name
 
@@ -161,7 +161,7 @@ type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name
 	return customTypes[name] || literal(name);
 }
 
-expression = call / ref / string / number
+expression = assignment / call / ref / string / number
 
 args = args:(ref:ref "," _ { return ref })* last:ref? {
 	if (last) args.push(last);
