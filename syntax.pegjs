@@ -1,6 +1,4 @@
 {
-	var customTypes = {};
-
 	function def(type, init, proto) {
 		function Class() {
 			var instance = Object.create(Class.prototype),
@@ -69,10 +67,7 @@
 
 start = block:block {
 	return program(
-		vars(
-			{id: id('$RESULT'), init: obj()},
-			{id: id('$TYPES'), init: obj()}
-		),
+		vars({id: id('$RESULT'), init: obj()}),
 		inContext(id('$RESULT'), block)
 	);
 }
@@ -119,12 +114,12 @@ struct = type:("struct" / "union") __ name:name? bblock:bblock {
 		var newBody = [
 			vars({
 				id: id('$START'),
-				init: call(member(id('binary'), id('tell')))
+				init: call(member(id('$BINARY'), id('tell')))
 			})
 		];
 
 		var seekBack = stmt(call(
-			member(id('binary'), id('seek')),
+			member(id('$BINARY'), id('seek')),
 			[id('$START')]
 		));
 
@@ -150,16 +145,13 @@ struct = type:("struct" / "union") __ name:name? bblock:bblock {
 	]);
 
 	if (name) {
-		expr = assign(customTypes[name.name] = member(id('$TYPES'), name), expr);
+		expr = assign(member(member(id('$BINARY'), id('typeSet')), name), expr);
 	}
 
 	return expr;
 }
 
-type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name {
-	var fullName = prefix + name.name;
-	return customTypes[fullName] || literal(fullName);
-}
+type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name { return literal(prefix + name.name) }
 
 expression = assignment / call / ref / string / number
 
@@ -169,7 +161,7 @@ args = args:(ref:ref "," _ { return ref })* last:ref? {
 }
 
 call = ref:ref "(" _ args:args ")" _ {
-	args.unshift(id('binary'));
+	args.unshift(id('$BINARY'));
 	return call(member(ref, id('call')), args);
 }
 
@@ -177,7 +169,7 @@ var_file = type:type ref:ref {
 	return assign(
 		member(id('$RESULT'), ref instanceof member ? ref.object : ref),
 		call(
-			member(id('binary'), id('read')),
+			member(id('$BINARY'), id('read')),
 			[ref instanceof member ? array(literal('array'), type, ref.property || id('undefined')) : type]
 		)
 	);
