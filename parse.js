@@ -31,7 +31,7 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 			return console.error(err);
 		}
 
-		fs.writeFile(destAstFilename, JSON.stringify(parsed, null, 2), encoding, function () {
+		fs.writeFile(destAstFilename, JSON.stringify(parsed, null, '\t'), encoding, function () {
 			try {
 				var generated = escodegen.generate(parsed, {
 					sourceMap: srcFilename,

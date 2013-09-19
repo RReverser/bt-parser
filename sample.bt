@@ -15,6 +15,7 @@ local char str[15] = "First";
 struct Point {
 	float x;
 	float y;
+	local float z = 0;
 };
 
 struct TempPoint {
