@@ -26,14 +26,15 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 		if (err) throw err;
 		var parsed = parser.parse(res);
 		fs.writeFile(destAstFilename, JSON.stringify(parsed, null, 2), encoding, function () {
-			var generated = escodegen.generate(parsed, {
-				sourceMap: srcFilename,
-				sourceMapWithCode: true
-			});
+			try {
+				var generated = escodegen.generate(parsed, {
+					sourceMap: srcFilename,
+					sourceMapWithCode: true
+				});
+			} catch (e) {
+				return console.error(e);
+			}
 			fs.writeFile(destJsFilename, generated.code + '\n//# sourceMappingURL=' + destMapFilename, encoding);
-			generated.map = JSON.parse(generated.map);
-			generated.map.file = destJsFilename;
-			generated.map = JSON.stringify(generated.map);
 			fs.writeFile(destMapFilename, generated.map, encoding);
 		});
 	});

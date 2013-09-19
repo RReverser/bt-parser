@@ -23,20 +23,25 @@
 					break;
 			}
 
-			this.__end__ = {line: line(), column: column() - 1};
-
 			return instance;
 		}
 
 		Class.prototype = proto || {};
 		Class.prototype.type = type;
 		Class.prototype.constructor = Class;
-		Class.prototype.__init__ = init;
+		Object.defineProperty(Class.prototype, '__init__', {value: init});
 		Class.prototype.at = function (start, end) {
-			this.loc = {start: start, end: end || this.__end__};
+			this.loc = {start: start, end: end};
 			return this;
-		}
+		};
 		Class.prototype.toString = function () { return '[' + this.type + ']' };
+		Class.prototype.toJSON = function () {
+			var tmp = {};
+			for (var key in this) {
+				tmp[key] = this[key];
+			}
+			return tmp;
+		};
 
 		return Class;
 	}
@@ -71,7 +76,7 @@ start = block:block {
 	return program(
 		vars({id: id('$RESULT'), init: obj()}),
 		inContext(id('$RESULT'), block)
-	).at(block.loc.start);
+	);
 }
 
 pos = { return {line: line(), column: column() - 1} }
@@ -88,7 +93,7 @@ oct_number = "0" number:$([0-7]+) { return parseInt(number, 8) }
 bin_number = "0b" number:$([01]+) { return parseInt(number, 2) }
 dec_number = number:$([0-9]+) { return parseInt(number, 10) }
 
-number = start:pos number:(hex_number / bin_number / oct_number / dec_number) _ { return literal(number).at(start) }
+number = number:(hex_number / bin_number / oct_number / dec_number) _ { return literal(number) }
 
 char
   // In the original JSON grammar: "any-Unicode-character-except-"-or-\-or-control-character"
@@ -105,15 +110,15 @@ char
 	  return String.fromCharCode(parseInt(digits, 16));
 	}
 
-string = start:pos '"' chars:$(char*) '"' _ { return literal(chars).at(start) }
+string = '"' chars:$(char*) '"' _ { return literal(chars) }
 
-name = start:pos name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name).at(start) }
-indexed = start:pos name:name index:("[" expr:expression? "]" _ { return expr }) { return member(name, index, true).at(start) }
+name = name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name) }
+indexed = name:name index:("[" expr:expression? "]" _ { return expr }) { return member(name, index, true) }
 ref = indexed / name
 
-assignment = start:pos ref:ref "=" _ expr:expression { return assign(ref, expr).at(start) }
+assignment = ref:ref "=" _ expr:expression { return assign(ref, expr) }
 
-struct = start:pos type:("struct" / "union") __ name:name? bblock:bblock {
+struct = type:("struct" / "union") __ name:name? bblock:bblock {
 	if (type === 'union') {
 		var newBody = [
 			vars({
@@ -139,7 +144,7 @@ struct = start:pos type:("struct" / "union") __ name:name? bblock:bblock {
 		vars({id: id('$RESULT'), init: obj()}),
 		inContext(id('$RESULT'), bblock),
 		ret(id('$RESULT'))
-	).at(bblock.loc.start);
+	);
 
 	var expr = call(member(id('jBinary'), id('Type')), [
 		obj({
@@ -149,56 +154,51 @@ struct = start:pos type:("struct" / "union") __ name:name? bblock:bblock {
 	]);
 
 	if (name) {
-		expr = assign(member(member(id('$BINARY'), id('typeSet')), name).at(name.loc.start, name.loc.end), expr.at(bblock.loc.start));
+		expr = assign(member(member(id('$BINARY'), id('typeSet')), name), expr);
 	}
 
-	return expr.at(start);
+	return expr;
 }
 
-type = struct / start:pos prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name { return literal(prefix + name.name).at(start) }
+type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name { return literal(prefix + name.name) }
 
-expression = assignment / call / ref / string / number
+expression = struct / assignment / call / ref / string / number
 
-args = args:(start:pos ref:ref "," _ { return ref.at(start) })* last:ref? {
+args = args:(ref:ref "," _ { return ref })* last:ref? {
 	if (last) args.push(last);
 	return args;
 }
 
-call = start:pos ref:ref "(" _ args:args ")" _ {
+call = ref:ref "(" _ args:args ")" _ {
 	args.unshift(id('$BINARY'));
-	return call(member(ref, id('call')).at(ref.loc.start, ref.loc.end), args).at(start);
+	return call(member(ref, id('call')), args);
 }
 
-var_file = start:pos type:type ref:ref {
-	if (ref instanceof member) {
-		type = array(literal('array'), type, ref.property || id('undefined')).at(type.loc.start, type.loc.end);
-		ref = ref.object.at(ref.loc.start, ref.loc.end);
-	}
-
-	return assign(
-		member(id('$RESULT'), ref).at(ref.loc.start, ref.loc.end),
+var_file = type:type ref:ref {
+	return stmt(assign(
+		member(id('$RESULT'), ref instanceof member ? ref.object : ref),
 		call(
 			member(id('$BINARY'), id('read')),
-			[type]
-		).at(type.loc.start, type.loc.end)
-	).at(start);
+			[ref instanceof member ? array(literal('array'), type, ref.property || id('undefined')) : type]
+		)
+	));
 }
 
-var_local = start:pos kind:("local" / "const") __ type:type ref:(assignment / ref) {
+var_local = kind:("local" / "const") __ type:type ref:(assignment / ref) {
 	return vars({
 		id: ref instanceof assign ? ref.left : ref,
 		init: ref.right
-	}).at(start);
+	});
 }
 
 var = var_local / var_file
 
-statement = expr:(var / struct / expression) eol {
-	return /Expression$/.test(expr.type) ? stmt(expr) : expr;
+statement = stmt:(var / expr:expression { return stmt(expr) }) eol {
+	return stmt;
 }
 
-block = start:pos stmts:statement* {
-	return block.apply(null, stmts).at(start);
+block = stmts:statement* {
+	return block.apply(null, stmts);
 }
 
-bblock = start:pos "{" _ block:block "}" _ { return block.at(start) }
+bblock = "{" _ block:block "}" _ { return block }
