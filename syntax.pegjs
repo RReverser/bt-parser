@@ -59,6 +59,7 @@
 	var assign = def('AssignmentExpression', ['left', 'right', 'operator'], {operator: '='});
 	var update = def('UpdateExpression', ['argument', 'operator', 'prefix']);
 	var call = def('CallExpression', ['callee', 'arguments'], {arguments: []});
+	var create = def('NewExpression', ['callee', 'arguments'], {arguments: []});
 	var vars = def('VariableDeclaration', function () {
 		this.declarations = Array.prototype.map.call(arguments, function (declaration) {
 			declaration.type = 'VariableDeclarator';
@@ -201,11 +202,14 @@ var_file = type:type ref:ref {
 	));
 }
 
-var_local = kind:("local" / "const") __ type:type ref:(assignment / ref) {
-	return vars({
-		id: ref instanceof assign ? ref.left : ref,
-		init: ref.right
-	});
+var_local = ("local" / "const") __ type:type ref:(assignment / ref) {
+	return vars(
+		ref instanceof assign
+			? {id: ref.left instanceof member ? ref.left.object : ref.left, init: ref.right}
+			: ref instanceof member
+				? {id: ref.object, init: ref.property ? create(id('Array'), [ref.property]) : array()}
+				: {id: ref}
+	);
 }
 
 var = var_local / var_file
