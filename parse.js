@@ -31,6 +31,9 @@ fs.readFile('syntax.pegjs', encoding, function (err, peg) {
 				sourceMapWithCode: true
 			});
 			fs.writeFile(destJsFilename, generated.code + '\n//# sourceMappingURL=' + destMapFilename, encoding);
+			generated.map = JSON.parse(generated.map);
+			generated.map.file = destJsFilename;
+			generated.map = JSON.stringify(generated.map);
 			fs.writeFile(destMapFilename, generated.map, encoding);
 		});
 	});

@@ -32,6 +32,10 @@
 		Class.prototype.type = type;
 		Class.prototype.constructor = Class;
 		Class.prototype.__init__ = init;
+		Class.prototype.at = function (start, end) {
+			this.loc = {start: start, end: end};
+			return this;
+		}
 		Class.prototype.toString = function () { return '[' + this.type + ']' };
 
 		return Class;
@@ -85,7 +89,7 @@ oct_number = "0" number:$([0-7]+) { return parseInt(number, 8) }
 bin_number = "0b" number:$([01]+) { return parseInt(number, 2) }
 dec_number = number:$([0-9]+) { return parseInt(number, 10) }
 
-number = number:(hex_number / bin_number / oct_number / dec_number) { return literal(number) }
+number = number:(hex_number / bin_number / oct_number / dec_number) _ { return literal(number) }
 
 char
   // In the original JSON grammar: "any-Unicode-character-except-"-or-\-or-control-character"
@@ -105,9 +109,7 @@ char
 string = '"' chars:$(char*) '"' _ { return literal(chars) }
 
 name = name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name) }
-
 indexed = name:name index:("[" expr:expression? "]" _ { return expr }) { return member(name, index, true) }
-
 ref = indexed / name
 
 assignment = ref:ref "=" _ expr:expression { return assign(ref, expr) }
@@ -134,8 +136,6 @@ struct = type:("struct" / "union") __ name:name? bblock:bblock {
 		bblock.body = newBody;
 	}
 
-	debugger;
-
 	bblock = block(
 		vars({id: id('$RESULT'), init: obj()}),
 		inContext(id('$RESULT'), bblock),
@@ -157,8 +157,8 @@ struct = type:("struct" / "union") __ name:name? bblock:bblock {
 }
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name {
-	name = prefix + name.name;
-	return customTypes[name] || literal(name);
+	var fullName = prefix + name.name;
+	return customTypes[fullName] || literal(fullName);
 }
 
 expression = assignment / call / ref / string / number
