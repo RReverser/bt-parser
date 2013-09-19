@@ -56,7 +56,8 @@
 			return property /* key, value */;
 		});
 	});
-	var assign = def('AssignmentExpression', ['left', 'right'], {operator: '='});
+	var assign = def('AssignmentExpression', ['left', 'right', 'operator'], {operator: '='});
+	var update = def('UpdateExpression', ['argument', 'operator', 'prefix']);
 	var call = def('CallExpression', ['callee', 'arguments'], {arguments: []});
 	var vars = def('VariableDeclaration', function () {
 		this.declarations = Array.prototype.map.call(arguments, function (declaration) {
@@ -70,6 +71,8 @@
 	var ret = def('ReturnStatement', ['argument']);
 	var func = def('FunctionExpression', ['params', 'body']);
 	var array = def('ArrayExpression', 'elements');
+	var binary = def('BinaryExpression', ['left', 'operator', 'right']);
+	var unary = def('UnaryExpression', ['operator', 'argument'], {prefix: true});
 }
 
 start = block:block {
@@ -116,7 +119,16 @@ name = name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name) }
 indexed = name:name index:("[" expr:expression? "]" _ { return expr }) { return member(name, index, true) }
 ref = indexed / name
 
-assignment = ref:ref "=" _ expr:expression { return assign(ref, expr) }
+op_unary = op:[!~+-] _ { return op }
+op_binary = op:($([<>=!] "=") / "<<" / ">>" / "||" / "&&" / [<>%|^&*/+-]) _ { return op }
+op_assign = op:$(("<<" / ">>" / [%|^&*/+-])? "=") _ { return op }
+op_update = op:("++" / "--") _ { return op }
+
+update_before = op:op_update ref:ref { return update(ref, op, true) }
+update_after = ref:ref op:op_update { return update(ref, op) }
+update = update_before / update_after
+
+assignment = update / ref:ref op:op_assign _ expr:expression { return assign(ref, expr, op) }
 
 struct = type:("struct" / "union") __ name:name? bblock:bblock {
 	if (type === 'union') {
@@ -162,7 +174,12 @@ struct = type:("struct" / "union") __ name:name? bblock:bblock {
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name { return literal(prefix + name.name) }
 
-expression = struct / assignment / call / ref / string / number
+single_expression = "(" expr:expression ")" _ { return expr }
+                  / op:op_unary expr:single_expression { return unary(op, expr) }
+                  / assignment / call / ref / string / number
+
+expression = left:single_expression op:op_binary right:expression { return binary(left, op, right) }
+           / single_expression
 
 args = args:(ref:ref "," _ { return ref })* last:ref? {
 	if (last) args.push(last);
@@ -193,7 +210,7 @@ var_local = kind:("local" / "const") __ type:type ref:(assignment / ref) {
 
 var = var_local / var_file
 
-statement = stmt:(var / expr:expression { return stmt(expr) }) eol {
+statement = stmt:(var / expr:(struct / expression) { return stmt(expr) }) eol {
 	return stmt;
 }
 
