@@ -74,6 +74,7 @@
 	var array = def('ArrayExpression', 'elements');
 	var binary = def('BinaryExpression', ['left', 'operator', 'right']);
 	var unary = def('UnaryExpression', ['operator', 'argument'], {prefix: true});
+	var cond = def('ConditionalExpression', ['test', 'consequent', 'alternate']);
 }
 
 start = block:block {
@@ -116,20 +117,11 @@ char
 
 string = '"' chars:$(char*) '"' _ { return literal(chars) }
 
+literal = string / number
+
 name = name:$([A-Za-z_] [A-Za-z_0-9]*) _ { return id(name) }
-indexed = name:name index:("[" expr:expression? "]" _ { return expr }) { return member(name, index, true) }
+indexed = name:name index:("[" expr:expr? "]" _ { return expr }) { return member(name, index, true) }
 ref = indexed / name
-
-op_unary = op:[!~+-] _ { return op }
-op_binary = op:($([<>=!] "=") / "<<" / ">>" / "||" / "&&" / [<>%|^&*/+-]) _ { return op }
-op_assign = op:$(("<<" / ">>" / [%|^&*/+-])? "=") _ { return op }
-op_update = op:("++" / "--") _ { return op }
-
-update_before = op:op_update ref:ref { return update(ref, op, true) }
-update_after = ref:ref op:op_update { return update(ref, op) }
-update = update_before / update_after
-
-assignment = update / ref:ref op:op_assign _ expr:expression { return assign(ref, expr, op) }
 
 struct = type:("struct" / "union") __ name:name? bblock:bblock {
 	if (type === 'union') {
@@ -175,12 +167,56 @@ struct = type:("struct" / "union") __ name:name? bblock:bblock {
 
 type = struct / prefix:(prefix:"unsigned" __ { return prefix + ' ' })? name:name { return literal(prefix + name.name) }
 
-single_expression = "(" expr:expression ")" _ { return expr }
-                  / op:op_unary expr:single_expression { return unary(op, expr) }
-                  / assignment / call / ref / string / number
-
-expression = left:single_expression op:op_binary right:expression { return binary(left, op, right) }
-           / single_expression
+// Looks like mess, but at least provides correct precedence for supported operators.
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+group = "(" expr:expr ")" _ { return expr }
+expr_0 = literal / group
+expr_1 = ref / expr_0
+expr_2 = call / expr_1
+op_update = op:("++" / "--") _ { return op }
+expr_3 =
+	  op:op_update ref:ref { return update(ref, op, true) }
+	/ ref:ref op:op_update { return update(ref, op) }
+	/ expr_2
+expr_4 =
+	  op:[!~+-] _ expr:expr_3 { return unary(op, expr) }
+	/ expr_3
+expr_5 =
+	  left:expr_4 op:[*/%] _ right:expr_5 { return binary(left, op, right) }
+	/ expr_4
+expr_6 =
+	  left:expr_5 op:[+-] _ right:expr_6 { return binary(left, op, right) }
+	/ expr_5
+expr_7 =
+	  left:expr_6 op:("<<" / ">>") _ right:expr_7 { return binary(left, op, right) }
+	/ expr_6
+expr_8 =
+	  left:expr_7 op:$([<>] "="?) _ right:expr_8 { return binary(left, op, right) }
+	/ expr_7
+expr_9 =
+	  left:expr_8 op:$([!=] "=") _ right:expr_9 { return binary(left, op, right) }
+	/ expr_8
+expr_10 =
+	  left:expr_9 op:"&" _ right:expr_10 { return binary(left, op, right) }
+	  / expr_9
+expr_11 =
+	  left:expr_10 op:"^" _ right:expr_11 { return binary(left, op, right) }
+	  / expr_10
+expr_12 =
+	  left:expr_11 op:"|" _ right:expr_12 { return binary(left, op, right) }
+	  / expr_11
+expr_13 =
+	  left:expr_12 op:"&&" _ right:expr_13 { return binary(left, op, right) }
+	  / expr_12
+expr_14 =
+	  left:expr_13 op:"||" _ right:expr_14 { return binary(left, op, right) }
+	  / expr_13
+expr_15 =
+	  test:expr_14 "?" _ good:expr_14 ":" _ bad:expr_15 { return cond(test, good, bad) }
+	/ expr_14
+op_assign = op:$(("<<" / ">>" / [%|^&*/+-])? "=") _ { return op }
+assignment = ref:ref op:op_assign _ expr:expr { return assign(ref, expr, op) }
+expr = assignment / expr_15
 
 args = args:(ref:ref "," _ { return ref })* last:ref? {
 	if (last) args.push(last);
@@ -214,7 +250,7 @@ var_local = ("local" / "const") __ type:type ref:(assignment / ref) {
 
 var = var_local / var_file
 
-statement = stmt:(var / expr:(struct / expression) { return stmt(expr) }) eol {
+statement = stmt:(var / expr:(struct / expr) { return stmt(expr) }) eol {
 	return stmt;
 }
 
