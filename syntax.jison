@@ -80,17 +80,18 @@
 %lex
 
 %%
-\s+                   /* skip whitespace */
-[\d]+('.'[\d]+)?\b    return 'NUMBER';
-[\w][\w\d]*           return 'IDENT';
-[*/\-+^()]            return yytext;
-<<EOF>>               return 'EOF';
+\s+						/* skip whitespace */
+[\d]+('.'[\d]+)?\b		return 'NUMBER';
+[\w][\w\d]*				return 'IDENT';
+[*/]					return 'OP_MUL';
+[+-]					return 'OP_ADD';
+[()]					return yytext;
+<<EOF>>					return 'EOF';
 
 /lex
 
-%left '+' '-'
-%left '*' '/'
-%left '^'
+%left OP_ADD
+%left OP_MUL
 %left UMINUS
 
 %start expressions
@@ -103,12 +104,9 @@ expressions
 	;
 
 e
-	: e '+' e -> binary($1, $2, $3)
-	| e '-' e -> binary($1, $2, $3)
-	| e '*' e -> binary($1, $2, $3)
-	| e '/' e -> binary($1, $2, $3)
-	| e '^' e -> binary($1, $2, $3)
-	| '-' e %prec UMINUS -> unary($1, $2)
+	: e OP_ADD e -> binary($1, $2, $3)
+	| e OP_MUL e -> binary($1, $2, $3)
+	| OP_ADD e %prec UMINUS -> unary($1, $2)
 	| '(' e ')' -> $2
 	| IDENT -> id(yytext)
 	| NUMBER -> literal(Number(yytext))
