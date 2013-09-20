@@ -83,6 +83,7 @@
 \s+						/* skip whitespace */
 [\d]+('.'[\d]+)?\b		return 'NUMBER';
 [\w][\w\d]*				return 'IDENT';
+'++'|'--'				return 'OP_UPDATE';
 [*/]					return 'OP_MUL';
 [+-]					return 'OP_ADD';
 [()]					return yytext;
@@ -92,22 +93,31 @@
 
 %left OP_ADD
 %left OP_MUL
-%left UMINUS
+%left OP_UPDATE
 
 %start expressions
 
 %% /* language grammar */
 
 expressions
-	: e EOF
-		{return $1;}
+	: e EOF { return $1 }
+	;
+
+ident
+	: IDENT -> id($1)
+	;
+
+literal
+	: NUMBER -> literal(Number($1))
 	;
 
 e
 	: e OP_ADD e -> binary($1, $2, $3)
 	| e OP_MUL e -> binary($1, $2, $3)
-	| OP_ADD e %prec UMINUS -> unary($1, $2)
+	| OP_ADD e -> unary($1, $2)
+	| OP_UPDATE ident -> update($2, $1, true)
+	| ident OP_UPDATE -> update($1, $2)
 	| '(' e ')' -> $2
-	| IDENT -> id(yytext)
-	| NUMBER -> literal(Number(yytext))
+	| ident
+	| literal
 	;
