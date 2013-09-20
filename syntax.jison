@@ -86,13 +86,37 @@
 '++'|'--'				return 'OP_UPDATE';
 [*/]					return 'OP_MUL';
 [+-]					return 'OP_ADD';
+'<<'|'>>'				return 'OP_SHIFT';
+[<>]'='?				return 'OP_RELATION';
+[!=]'='					return 'OP_EQUAL';
+'&'						return 'OP_BIT_AND';
+'^'						return 'OP_BIT_XOR';
+'|'						return 'OP_BIT_OR';
+'&&'					return 'OP_LOGIC_AND';
+'||'					return 'OP_LOGIC_OR';
+'?'						return 'OP_TERNARY';
+':'						return 'OP_COLON';
+[!~]					return 'OP_NOT';
+([+\-*/%&^|]|'<<'|'>>')?'=' return 'OP_ASSIGN';
 [()]					return yytext;
 <<EOF>>					return 'EOF';
 
 /lex
 
+%right OP_ASSIGN
+%right OP_COLON
+%right OP_TERNARY
+%left OP_LOGIC_OR
+%left OP_LOGIC_AND
+%left OP_BIT_OR
+%left OP_BIT_XOR
+%left OP_BIT_AND
+%left OP_EQUAL
+%left OP_RELATION
+%left OP_SHIFT
 %left OP_ADD
 %left OP_MUL
+%right OP_NOT
 %left OP_UPDATE
 
 %start expressions
@@ -114,9 +138,20 @@ literal
 e
 	: e OP_ADD e -> binary($1, $2, $3)
 	| e OP_MUL e -> binary($1, $2, $3)
+	| e OP_SHIFT e -> binary($1, $2, $3)
+	| e OP_RELATION e -> binary($1, $2, $3)
+	| e OP_EQUAL e -> binary($1, $2, $3)
+	| e OP_BIT_AND e -> binary($1, $2, $3)
+	| e OP_BIT_XOR e -> binary($1, $2, $3)
+	| e OP_BIT_OR e -> binary($1, $2, $3)
+	| e OP_LOGIC_AND e -> binary($1, $2, $3)
+	| e OP_LOGIC_OR e -> binary($1, $2, $3)
+	| ident OP_ASSIGN e -> assign($1, $3, $2)
+	| OP_NOT e -> unary($1, $2)
 	| OP_ADD e -> unary($1, $2)
 	| OP_UPDATE ident -> update($2, $1, true)
 	| ident OP_UPDATE -> update($1, $2)
+	| e OP_TERNARY e OP_COLON e -> cond($1, $3, $5)
 	| '(' e ')' -> $2
 	| ident
 	| literal
