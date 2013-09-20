@@ -1,48 +1,35 @@
-var PEG = require('pegjs'),
-	SourceNode = require('source-map').SourceNode,
+var Parser = require('jison').Parser,
 	fs = require('fs'),
 	util = require('util'),
 	escodegen = require('escodegen'),
 	encoding = {encoding: 'utf-8'};
 
-fs.readFile('syntax.pegjs', encoding, function (err, peg) {
-	if (err) throw err;
-	
-	try {
-		var parser = PEG.buildParser(peg, {
-			trackLineAndColumn: true
-		});
-	} catch (err) {
-		return console.error(err);
-	}
-	
-	var srcFilename = 'sample.bt',
-		destFilename = srcFilename.replace(/\.bt$/, '.gen'),
-		destAstFilename = destFilename + '.json',
-		destJsFilename = destFilename + '.js',
-		destMapFilename = destJsFilename + '.map';
+var parser = new Parser(fs.readFileSync('syntax.jison', encoding));
 
-	fs.readFile(srcFilename, encoding, function (err, res) {
-		if (err) throw err;
+fs.writeFileSync('out/syntax.js', parser.generate(), encoding);
+parser = require('./out/syntax');
 
-		try {
-			var parsed = parser.parse(res);
-		} catch (err) {
-			return console.error(err);
-		}
+var srcFilename = 'sample.bt',
+	destFilename = 'out/sample',
+	destAstFilename = destFilename + '.json',
+	destJsFilename = destFilename + '.js',
+	destMapFilename = destJsFilename + '.map';
 
-		fs.writeFile(destAstFilename, JSON.stringify(parsed, null, '\t'), encoding, function () {
-			try {
-				var generated = escodegen.generate(parsed, {
-					sourceMap: srcFilename,
-					sourceMapWithCode: true
-				});
-			} catch (err) {
-				return console.error(err);
-			}
+var res = fs.readFileSync(srcFilename, encoding);
 
-			fs.writeFile(destJsFilename, generated.code + '\n//# sourceMappingURL=' + destMapFilename, encoding);
-			fs.writeFile(destMapFilename, generated.map, encoding);
-		});
-	});
+try {
+	var parsed = parser.parse(res);
+} catch (err) {
+	return console.error(err);
+}
+
+console.log(parsed);
+
+fs.writeFileSync(destAstFilename, JSON.stringify(parsed, null, '\t'), encoding)
+
+var generated = escodegen.generate(parsed, {
+	sourceMap: srcFilename,
+	sourceMapWithCode: true
 });
+
+fs.writeFile(destJsFilename, generated.code, encoding);

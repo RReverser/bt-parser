@@ -4,9 +4,9 @@
   "main": "parse.js",
   "version": "0.0.0",
   "dependencies": {
-    "pegjs": "git://github.com/dmajda/pegjs.git",
     "source-map": "~0.1.29",
-    "escodegen": "0.0.27"
+    "escodegen": "0.0.27",
+    "jison": "~0.4.13"
   },
   "scripts": {
     "test": "node parse.js"
