@@ -1,2 +1,7 @@
-x = 1 ? 2 - 3 : 4;
-y = 1
+if(x)y;else{if(z)y;else t;}
+while(s) a;
+while(t) {b;c;}
+while(d);
+++x+y++;
+true;
+do while(x)y; while(z);

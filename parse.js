@@ -16,12 +16,7 @@ var srcFilename = 'sample.bt',
 	destMapFilename = destJsFilename + '.map';
 
 var res = fs.readFileSync(srcFilename, encoding);
-
-try {
-	var parsed = parser.parse(res);
-} catch (err) {
-	return console.error(err);
-}
+var parsed = parser.parse(res);
 
 console.log(parsed);
 
