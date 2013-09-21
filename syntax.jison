@@ -96,13 +96,15 @@
 '||'					return 'OP_LOGIC_OR';
 '?'						return 'OP_TERNARY';
 ':'						return 'OP_COLON';
+';'						return 'OP_SEMICOLON';
 [!~]					return 'OP_NOT';
 ([+\-*/%&^|]|'<<'|'>>')?'=' return 'OP_ASSIGN';
-[()]					return yytext;
+[(){}]					return yytext;
 <<EOF>>					return 'EOF';
 
 /lex
 
+%left OP_SEMICOLON
 %right OP_ASSIGN
 %right OP_COLON
 %right OP_TERNARY
@@ -119,12 +121,29 @@
 %right OP_NOT
 %left OP_UPDATE
 
-%start expressions
+%start program
 
 %% /* language grammar */
 
-expressions
-	: e EOF { return $1 }
+program
+	: block EOF {
+		$1.type = 'Program';
+		return $1;
+	}
+	| EOF -> program()
+	;
+
+block
+	: block OP_SEMICOLON stmt {
+		$1.body.push($3);
+		$$ = $1;
+	}
+	| block OP_SEMICOLON -> $1
+	| stmt -> block($1)
+	;
+
+type
+	: IDENT -> literal($1)
 	;
 
 ident
@@ -133,6 +152,16 @@ ident
 
 literal
 	: NUMBER -> literal(Number($1))
+	;
+
+bblock
+	: '{' block '}' -> $2
+	| '{' '}' -> block()
+	;
+
+stmt
+	/* : type ident OP_SEMICOLON -> vars({id: $2, init: call(member(id('$BINARY', 'read')), [$1])}) */
+	: e -> stmt($1)
 	;
 
 e
