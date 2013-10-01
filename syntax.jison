@@ -87,7 +87,7 @@
 \s+						/* skip whitespace */
 [\d]+('.'[\d]+)?\b			return 'NUMBER';
 ('true'|'false')			return 'BOOL_CONST';
-('if'|'else'|'do'|'while')	return 'OP_' + yytext.toUpperCase();
+('if'|'else'|'do'|'while'|'struct')	return 'OP_' + yytext.toUpperCase();
 [\w][\w\d]*					return 'IDENT';
 '++'|'--'					return 'OP_UPDATE';
 [*/]						return 'OP_MUL';
@@ -104,6 +104,7 @@
 ':'							return 'OP_COLON';
 ';'							return 'OP_SEMICOLON';
 [!~]						return 'OP_NOT';
+'='							return 'OP_ASSIGN_SIMPLE';
 ([+\-*/%&^|]|'<<'|'>>')?'='	return 'OP_ASSIGN';
 [(){}]						return yytext;
 <<EOF>>						return 'EOF';
@@ -148,10 +149,6 @@ block
 	| stmt -> block($1)
 	;
 
-type
-	: IDENT -> literal($1)
-	;
-
 ident
 	: IDENT -> id($1)
 	;
@@ -167,14 +164,19 @@ bblock
 	;
 
 stmt
-	/* : type ident OP_SEMICOLON -> vars({id: $2, init: call(member(id('$BINARY', 'read')), [$1])}) */
 	: OP_IF '(' e ')' stmt OP_ELSE stmt -> cond($3, $5, $7)
 	| OP_IF '(' e ')' stmt -> cond($3, $5)
 	| OP_WHILE '(' e ')' stmt -> while_do($3, $5)
 	| OP_DO stmt OP_WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
+	| vardef
 	| e OP_SEMICOLON -> stmt($1)
 	| OP_SEMICOLON -> empty()
+	;
+
+vardef
+	: IDENT ident OP_SEMICOLON -> vars({id: $2, init: call(member(id('$BINARY'), id('read')), [literal($1)])})
+	| IDENT ident OP_ASSIGN_SIMPLE e OP_SEMICOLON -> vars({id: $2, init: $4})
 	;
 
 e

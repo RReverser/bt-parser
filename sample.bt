@@ -5,3 +5,7 @@ while(d);
 ++x+y++;
 true;
 do while(x)y; while(z);
+if(y)t;
+uint x;
+uint y = 10;
+x;
