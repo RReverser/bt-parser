@@ -91,6 +91,8 @@
 'struct'					return 'OP_STRUCT';
 [\w][\w\d]*					return 'IDENT';
 '++'|'--'					return 'OP_UPDATE';
+([+\-*/%&^|]|'<<'|'>>')'='	return 'OP_ASSIGN_COMPLEX';
+'='							return 'OP_ASSIGN';
 [*/]						return 'OP_MUL';
 [+-]						return 'OP_ADD';
 '<<'|'>>'					return 'OP_SHIFT';
@@ -105,8 +107,6 @@
 ':'							return 'OP_COLON';
 ';'							return 'OP_SEMICOLON';
 [!~]						return 'OP_NOT';
-'='							return 'OP_ASSIGN_SIMPLE';
-([+\-*/%&^|]|'<<'|'>>')?'='	return 'OP_ASSIGN';
 [(){}]						return yytext;
 <<EOF>>						return 'EOF';
 
@@ -115,6 +115,7 @@
 %left OP_SEMICOLON
 %nonassoc OP_IF
 %right OP_ELSE
+%right OP_ASSIGN_COMPLEX
 %right OP_ASSIGN
 %right OP_COLON
 %right OP_TERNARY
@@ -179,7 +180,7 @@ stmt
 
 vardef
 	: IDENT ident -> {id: $2, init: call(member(id('$BINARY'), id('read')), [literal($1)])}
-	| IDENT ident OP_ASSIGN_SIMPLE e -> {id: $2, init: $4}
+	| IDENT ident OP_ASSIGN e -> {id: $2, init: $4}
 	| OP_STRUCT bblock ident {
 		$$ = {
 			id: $3,
@@ -210,7 +211,8 @@ e
 	| e OP_BIT_OR e -> binary($1, $2, $3)
 	| e OP_LOGIC_AND e -> binary($1, $2, $3)
 	| e OP_LOGIC_OR e -> binary($1, $2, $3)
-	| ident OP_ASSIGN e -> assign($1, $3, $2)
+	| ident OP_ASSIGN_COMPLEX e -> assign($1, $3, $2)
+	| ident OP_ASSIGN e -> assign($1, $3)
 	| OP_NOT e -> unary($1, $2)
 	| OP_ADD e -> unary($1, $2)
 	| OP_UPDATE ident -> update($2, $1, true)

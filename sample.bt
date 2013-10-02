@@ -8,7 +8,9 @@ do while(x)y; while(z);
 if(y)t;
 uint x;
 uint y = 10;
-x;
+x = 1;
+x += y;
+x != y ? 3 : 4;
 
 struct {
 	float x;
