@@ -84,7 +84,9 @@
 %lex
 
 %%
-\s+						/* skip whitespace */
+'//'.*						/* skip one-line comments */
+'/*'[\s\S]*'*/'				/* skip multi-line comments */
+\s+						    /* skip whitespace */
 [\d]+('.'[\d]+)?\b			return 'NUMBER';
 'true'|'false'				return 'BOOL_CONST';
 'if'|'else'|'do'|'while'|'local'

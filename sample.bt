@@ -2,7 +2,11 @@ if(x)y;else{if(z)y;else t;}
 while(s) a;
 while(t) {b;c;}
 while(d);
-++x+y++;
+++x+y++; // one-line comment
+/* multi
+line
+comment
+*/
 true;
 do while(x)y; while(z);
 if(y)t;
