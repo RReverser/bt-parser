@@ -17,7 +17,20 @@ x = 1;
 x += y;
 x != y ? 3 : 4;
 
-struct {
+struct Point {
 	float x;
 	float y;
 } point;
+
+struct Empty {
+} empty;
+
+struct {
+	/* comment ? */
+} inline_empty;
+
+struct DefinedOnly {
+	int x;
+};
+
+DefinedOnly d;

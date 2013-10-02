@@ -79,13 +79,33 @@
 	var while_do = def('WhileStatement', ['test', 'body']);
 	var do_while = def('DoWhileStatement', ['body', 'test']);
 	var empty = def('EmptyStatement');
+
+	var jb_read = function (type) {
+		return call(member(id('$BINARY'), id('read')), [type]);
+	};
+	var jb_struct = function ($block, defineId) {
+		var expr = call(member(id('jBinary'), id('Type')), [
+			obj({
+				key: id('read'),
+				value: func([], block(
+					vars({id: id('$SCOPE'), init: obj()}),
+					inContext(id('$SCOPE'), $block),
+					ret(id('$SCOPE'))
+				))
+			})
+		]);
+		if (defineId) {
+			expr = assign(member(member(id('$BINARY'), id('typeSet')), defineId), expr);
+		}
+		return expr;
+	};
 %}
 
 %lex
 
 %%
 '//'.*						/* skip one-line comments */
-'/*'[\s\S]*'*/'				/* skip multi-line comments */
+'/*'[\s\S]*?'*/'			/* skip multi-line comments */
 \s+						    /* skip whitespace */
 [\d]+('.'[\d]+)?\b			return 'NUMBER';
 'true'|'false'				return 'BOOL_CONST';
@@ -176,32 +196,18 @@ stmt
 	| WHILE '(' e ')' stmt -> while_do($3, $5)
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
+	| STRUCT ident bblock OP_SEMICOLON -> stmt(jb_struct($3, $2))
 	| vardef OP_SEMICOLON -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
 	| e OP_SEMICOLON -> stmt($1)
 	| OP_SEMICOLON -> empty()
 	;
 
 vardef
-	: IDENT ident -> {id: $2, init: call(member(id('$BINARY'), id('read')), [literal($1)])}
+	: IDENT ident -> {id: $2, init: jb_read(literal($1))}
 	| LOCAL IDENT ident OP_ASSIGN e -> {id: $3, init: $5}
 	| LOCAL IDENT ident -> {id: $3, init: id('undefined')}
-	| STRUCT bblock ident {
-		$$ = {
-			id: $3,
-			init: call(member(id('$BINARY'), id('read')), [
-				call(member(id('jBinary'), id('Type')), [
-					obj({
-						key: id('read'),
-						value: func([],  block(
-							vars({id: id('$SCOPE'), init: obj()}),
-							inContext(id('$SCOPE'), $2),
-							ret(id('$SCOPE'))
-						))
-					})
-				])
-			])
-		};
-	}
+	| STRUCT ident bblock ident -> {id: $4, init: jb_read(jb_struct($3, $2))}
+	| STRUCT bblock ident -> {id: $3, init: jb_read(jb_struct($2))}
 	;
 
 e
