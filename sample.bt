@@ -9,3 +9,8 @@ if(y)t;
 uint x;
 uint y = 10;
 x;
+
+struct {
+	float x;
+	float y;
+} point;

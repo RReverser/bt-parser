@@ -86,8 +86,9 @@
 %%
 \s+						/* skip whitespace */
 [\d]+('.'[\d]+)?\b			return 'NUMBER';
-('true'|'false')			return 'BOOL_CONST';
-('if'|'else'|'do'|'while'|'struct')	return 'OP_' + yytext.toUpperCase();
+'true'|'false'				return 'BOOL_CONST';
+'if'|'else'|'do'|'while'	return 'OP_' + yytext.toUpperCase();
+'struct'					return 'OP_STRUCT';
 [\w][\w\d]*					return 'IDENT';
 '++'|'--'					return 'OP_UPDATE';
 [*/]						return 'OP_MUL';
@@ -136,8 +137,10 @@
 
 program
 	: block EOF {
-		$1.type = 'Program';
-		return $1;
+		return program(
+			vars({id: id('$SCOPE'), init: obj()}),
+			inContext(id('$SCOPE'), $1)
+		);
 	}
 	| EOF -> program()
 	;
@@ -169,14 +172,31 @@ stmt
 	| OP_WHILE '(' e ')' stmt -> while_do($3, $5)
 	| OP_DO stmt OP_WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
-	| vardef
+	| vardef OP_SEMICOLON -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
 	| e OP_SEMICOLON -> stmt($1)
 	| OP_SEMICOLON -> empty()
 	;
 
 vardef
-	: IDENT ident OP_SEMICOLON -> vars({id: $2, init: call(member(id('$BINARY'), id('read')), [literal($1)])})
-	| IDENT ident OP_ASSIGN_SIMPLE e OP_SEMICOLON -> vars({id: $2, init: $4})
+	: IDENT ident -> {id: $2, init: call(member(id('$BINARY'), id('read')), [literal($1)])}
+	| IDENT ident OP_ASSIGN_SIMPLE e -> {id: $2, init: $4}
+	| OP_STRUCT bblock ident {
+		$$ = {
+			id: $3,
+			init: call(member(id('$BINARY'), id('read')), [
+				call(member(id('jBinary'), id('Type')), [
+					obj({
+						key: id('read'),
+						value: func([],  block(
+							vars({id: id('$SCOPE'), init: obj()}),
+							inContext(id('$SCOPE'), $2),
+							ret(id('$SCOPE'))
+						))
+					})
+				])
+			])
+		};
+	}
 	;
 
 e
