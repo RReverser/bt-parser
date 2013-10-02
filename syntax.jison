@@ -109,44 +109,35 @@
 \s+						    /* skip whitespace */
 [\d]+('.'[\d]+)?\b			return 'NUMBER';
 'true'|'false'				return 'BOOL_CONST';
-'if'|'else'|'do'|'while'|'local'
+'if'|'else'|'do'|'while'|'local'|'struct'
 							return yytext.toUpperCase();
-'struct'					return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
-'++'|'--'					return 'OP_UPDATE';
 ([+\-*/%&^|]|'<<'|'>>')'='	return 'OP_ASSIGN_COMPLEX';
-'='							return 'OP_ASSIGN';
 [*/]						return 'OP_MUL';
+'++'|'--'					return 'OP_UPDATE';
 [+-]						return 'OP_ADD';
 '<<'|'>>'					return 'OP_SHIFT';
 [<>]'='?					return 'OP_RELATION';
 [!=]'='						return 'OP_EQUAL';
-'&'							return 'OP_BIT_AND';
-'^'							return 'OP_BIT_XOR';
-'|'							return 'OP_BIT_OR';
-'&&'						return 'OP_LOGIC_AND';
-'||'						return 'OP_LOGIC_OR';
-'?'							return 'OP_TERNARY';
-':'							return 'OP_COLON';
-';'							return 'OP_SEMICOLON';
 [!~]						return 'OP_NOT';
-[(){}]						return yytext;
+'&&'|'||'|[(){}:;,?&^|=]
+							return yytext;
 <<EOF>>						return 'EOF';
 
 /lex
 
-%left OP_SEMICOLON
+%left ';'
 %nonassoc IF
 %right ELSE
 %right OP_ASSIGN_COMPLEX
-%right OP_ASSIGN
-%right OP_COLON
-%right OP_TERNARY
-%left OP_LOGIC_OR
-%left OP_LOGIC_AND
-%left OP_BIT_OR
-%left OP_BIT_XOR
-%left OP_BIT_AND
+%right '='
+%right ':'
+%right '?'
+%left '||'
+%left '&&'
+%left '|'
+%left '^'
+%left '&'
 %left OP_EQUAL
 %left OP_RELATION
 %left OP_SHIFT
@@ -196,18 +187,25 @@ stmt
 	| WHILE '(' e ')' stmt -> while_do($3, $5)
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
-	| STRUCT ident bblock OP_SEMICOLON -> stmt(jb_struct($3, $2))
-	| vardef OP_SEMICOLON -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
-	| e OP_SEMICOLON -> stmt($1)
-	| OP_SEMICOLON -> empty()
+	| STRUCT ident bblock ';' -> stmt(jb_struct($3, $2))
+	| vardef ';' -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
+	| e ';' -> stmt($1)
+	| ';' -> empty()
 	;
 
 vardef
 	: IDENT ident -> {id: $2, init: jb_read(literal($1))}
-	| LOCAL IDENT ident OP_ASSIGN e -> {id: $3, init: $5}
+	| LOCAL IDENT ident '=' e -> {id: $3, init: $5}
 	| LOCAL IDENT ident -> {id: $3, init: id('undefined')}
 	| STRUCT ident bblock ident -> {id: $4, init: jb_read(jb_struct($3, $2))}
 	| STRUCT bblock ident -> {id: $3, init: jb_read(jb_struct($2))}
+	;
+
+args
+	: args ',' e {
+		($$ = $1).push($3);
+	}
+	| e -> [$1]
 	;
 
 e
@@ -216,19 +214,21 @@ e
 	| e OP_SHIFT e -> binary($1, $2, $3)
 	| e OP_RELATION e -> binary($1, $2, $3)
 	| e OP_EQUAL e -> binary($1, $2, $3)
-	| e OP_BIT_AND e -> binary($1, $2, $3)
-	| e OP_BIT_XOR e -> binary($1, $2, $3)
-	| e OP_BIT_OR e -> binary($1, $2, $3)
-	| e OP_LOGIC_AND e -> binary($1, $2, $3)
-	| e OP_LOGIC_OR e -> binary($1, $2, $3)
+	| e '&' e -> binary($1, $2, $3)
+	| e '^' e -> binary($1, $2, $3)
+	| e '|' e -> binary($1, $2, $3)
+	| e '&&' e -> binary($1, $2, $3)
+	| e '||' e -> binary($1, $2, $3)
 	| ident OP_ASSIGN_COMPLEX e -> assign($1, $3, $2)
-	| ident OP_ASSIGN e -> assign($1, $3)
+	| ident '=' e -> assign($1, $3)
 	| OP_NOT e -> unary($1, $2)
 	| OP_ADD e -> unary($1, $2)
 	| OP_UPDATE ident -> update($2, $1, true)
 	| ident OP_UPDATE -> update($1, $2)
-	| e OP_TERNARY e OP_COLON e -> ternary($1, $3, $5)
+	| e '?' e ':' e -> ternary($1, $3, $5)
 	| '(' e ')' -> $2
+	| ident '(' args ')' -> call($1, $3)
+	| ident '(' ')' -> call($1, [])
 	| ident
 	| literal
 	;
