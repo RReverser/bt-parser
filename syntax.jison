@@ -213,7 +213,7 @@ e
 	| e OP_MUL e -> binary($1, $2, $3)
 	| e OP_SHIFT e -> binary($1, $2, $3)
 	| e OP_RELATION e -> binary($1, $2, $3)
-	| e OP_EQUAL e -> binary($1, $2, $3)
+	| e OP_EQUAL e -> binary($1, $2 + '=', $3)
 	| e '&' e -> binary($1, $2, $3)
 	| e '^' e -> binary($1, $2, $3)
 	| e '|' e -> binary($1, $2, $3)
