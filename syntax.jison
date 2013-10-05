@@ -219,18 +219,35 @@ stmt
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
 	| STRUCT IDENT bblock ';' -> stmt(jb_struct($3, $2))
-	| vardef ';' -> vars($1)
+	| vardef ';' -> vars.apply(null, $1)
 	| RETURN e ';' -> ret($2)
 	| e ';' -> stmt($1)
 	| ';' -> empty()
 	;
 
 vardef
-	: IDENT ident -> {id: $2, init: jb_read(jb_type($1))}
-	| LOCAL IDENT ident '=' e -> {id: $3, init: $5}
-	| LOCAL IDENT ident -> {id: $3}
-	| STRUCT IDENT bblock ident -> {id: $4, init: jb_read(jb_struct($3, $2))}
-	| STRUCT bblock ident -> {id: $3, init: jb_read(jb_struct($2))}
+	: vardef_file
+	| vardef_local
+	;
+
+vardef_file
+	: IDENT ident -> [{id: $2, init: jb_read(jb_type($1))}]
+	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($3, $2))}]
+	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($2))}]
+	| vardef_file ',' ident {
+		($$ = $1).push({id: $3, init: $1[0].init});
+	}
+	;
+
+vardef_local
+	: LOCAL IDENT ident '=' e -> [{id: $3, init: $5}]
+	| LOCAL IDENT ident -> [{id: $3}]
+	| vardef_local ',' ident '=' e {
+		($$ = $1).push({id: $3, init: $5});
+	}
+	| vardef_local ',' ident {
+		($$ = $1).push({id: $3});
+	}
 	;
 
 args

@@ -1,12 +1,12 @@
 //--------------------------------------------
 
 struct {
-	local uint z = 0;
+	local uint z = 0, z0;
 	struct A {
-		uint x;
+		uint x, x0;
 	} a;
 	struct {
-		uint y;
+		uint y, y0;
 	} b;
 } obj;
 
