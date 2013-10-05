@@ -121,7 +121,8 @@
 '//'.*						/* skip one-line comments */
 '/*'[\s\S]*?'*/'			/* skip multi-line comments */
 \s+						    /* skip whitespace */
-[\d]+('.'[\d]+)?\b			return 'NUMBER';
+\d+('.'\d+)?\b				return 'NUMBER';
+('"'.*'"')|("'"."'")		return 'STRING';
 'true'|'false'				return 'BOOL_CONST';
 'if'|'else'|'do'|'while'|'local'|'struct'
 							return yytext.toUpperCase();
@@ -187,6 +188,7 @@ ident
 
 literal
 	: NUMBER -> literal(Number($1))
+	| STRING -> literal(JSON.parse('"' + $1.slice(1, -1) + '"'))
 	| BOOL_CONST -> literal(Boolean($1))
 	;
 
