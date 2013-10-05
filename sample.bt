@@ -43,3 +43,7 @@ x < 3;
 x == 4;
 x <<= 5;
 x &= 1;
+
+if (condition)
+	string0 variable;
+

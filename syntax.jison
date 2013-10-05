@@ -83,6 +83,11 @@
 	var jb_read = function (type) {
 		return call(member(id('$BINARY'), id('read')), [type]);
 	};
+
+	var jb_type = function (name) {
+		return member(member(id('$BINARY'), id('typeSet')), literal(name), true);
+	};
+
 	var jb_struct = function ($block, defineId) {
 		var expr = call(member(id('jBinary'), id('Type')), [
 			obj({
@@ -94,9 +99,11 @@
 				))
 			})
 		]);
+
 		if (defineId) {
-			expr = assign(member(member(id('$BINARY'), id('typeSet')), defineId), expr);
+			expr = assign(jb_type(defineId), expr);
 		}
+
 		return expr;
 	};
 %}
@@ -187,17 +194,17 @@ stmt
 	| WHILE '(' e ')' stmt -> while_do($3, $5)
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
-	| STRUCT ident bblock ';' -> stmt(jb_struct($3, $2))
+	| STRUCT IDENT bblock ';' -> stmt(jb_struct($3, $2))
 	| vardef ';' -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
 	| e ';' -> stmt($1)
 	| ';' -> empty()
 	;
 
 vardef
-	: IDENT ident -> {id: $2, init: jb_read(literal($1))}
+	: IDENT ident -> {id: $2, init: jb_read(jb_type($1))}
 	| LOCAL IDENT ident '=' e -> {id: $3, init: $5}
 	| LOCAL IDENT ident -> {id: $3, init: id('undefined')}
-	| STRUCT ident bblock ident -> {id: $4, init: jb_read(jb_struct($3, $2))}
+	| STRUCT IDENT bblock ident -> {id: $4, init: jb_read(jb_struct($3, $2))}
 	| STRUCT bblock ident -> {id: $3, init: jb_read(jb_struct($2))}
 	;
 
