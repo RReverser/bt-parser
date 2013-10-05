@@ -124,7 +124,7 @@
 \d+('.'\d+)?\b				return 'NUMBER';
 ('"'.*'"')|("'"."'")		return 'STRING';
 'true'|'false'				return 'BOOL_CONST';
-'if'|'else'|'do'|'while'|'local'|'struct'
+'if'|'else'|'do'|'while'|'return'|'local'|'struct'
 							return yytext.toUpperCase();
 [\w][\w\d]*					return 'IDENT';
 ([+\-*/%&^|]|'<<'|'>>')'='	return 'OP_ASSIGN_COMPLEX';
@@ -172,7 +172,7 @@ program
 			inContext(id('$SCOPE'), $1)
 		);
 	}
-	| EOF -> program()
+	| EOF { return program() }
 	;
 
 block
@@ -205,6 +205,7 @@ stmt
 	| bblock
 	| STRUCT IDENT bblock ';' -> stmt(jb_struct($3, $2))
 	| vardef ';' -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
+	| RETURN e ';' -> ret($2)
 	| e ';' -> stmt($1)
 	| ';' -> empty()
 	;
