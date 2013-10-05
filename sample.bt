@@ -1,5 +1,17 @@
 //--------------------------------------------
 
+struct {
+	local uint z = 0;
+	struct A {
+		uint x;
+	} a;
+	struct {
+		uint y;
+	} b;
+} obj;
+
+A a;
+
 // Define the file
 local uint tag;
 LittleEndian(); 

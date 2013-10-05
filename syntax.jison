@@ -92,18 +92,31 @@
 	};
 
 	var jb_type = function (name) {
-		return member(member(id('$BINARY'), id('typeSet')), literal(name), true);
+		return member(id('$TYPESET'), literal(name), true);
 	};
 
-	var jb_struct = function ($block, defineId) {
+	var jb_struct = function (block, defineId) {
+		var scope = obj();
+
+		(function traverse(node) {
+			if (node.type === 'VariableDeclarator') {
+				var id = node.id;
+				scope.properties.push({key: id, value: id});
+			} else
+			for (var name in node) {
+				var subNode = node[name];
+				if (typeof subNode === 'object') {
+					traverse(subNode);
+				}
+			}
+		})(block);
+
+		block.body.push(ret(scope));
+
 		var expr = call(member(id('jBinary'), id('Type')), [
 			obj({
 				key: id('read'),
-				value: func([], block(
-					vars({id: id('$SCOPE'), init: obj()}),
-					inContext(id('$SCOPE'), $block),
-					ret(id('$SCOPE'))
-				))
+				value: func([], block)
 			})
 		]);
 
@@ -167,10 +180,12 @@
 
 program
 	: block EOF {
-		return program(
-			vars({id: id('$SCOPE'), init: obj()}),
-			inContext(id('$SCOPE'), $1)
-		);
+		$1.type = 'Program';
+		$1.body.unshift(vars({
+			id: id('$TYPESET'),
+			init: member(id('$BINARY'), id('typeSet'))
+		}));
+		return $1;
 	}
 	| EOF { return program() }
 	;
@@ -204,7 +219,7 @@ stmt
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
 	| STRUCT IDENT bblock ';' -> stmt(jb_struct($3, $2))
-	| vardef ';' -> stmt(assign(member(id('$SCOPE'), $1.id), $1.init))
+	| vardef ';' -> vars($1)
 	| RETURN e ';' -> ret($2)
 	| e ';' -> stmt($1)
 	| ';' -> empty()
@@ -213,7 +228,7 @@ stmt
 vardef
 	: IDENT ident -> {id: $2, init: jb_read(jb_type($1))}
 	| LOCAL IDENT ident '=' e -> {id: $3, init: $5}
-	| LOCAL IDENT ident -> {id: $3, init: id('undefined')}
+	| LOCAL IDENT ident -> {id: $3}
 	| STRUCT IDENT bblock ident -> {id: $4, init: jb_read(jb_struct($3, $2))}
 	| STRUCT bblock ident -> {id: $3, init: jb_read(jb_struct($2))}
 	;
