@@ -37,9 +37,16 @@
 		Class.prototype.toString = function () { return '[' + this.type + ']' };
 		Class.prototype.toJSON = function () {
 			var tmp = {};
-			for (var key in this) {
-				tmp[key] = this[key];
-			}
+			
+			[Class.prototype, this]
+			.forEach(function (obj) {
+				for (var name in obj) {
+					if (obj.hasOwnProperty(name)) {
+						tmp[name] = obj[name];
+					}
+				}
+			});
+
 			return tmp;
 		};
 
