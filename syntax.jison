@@ -100,8 +100,10 @@
 
 		(function traverse(node) {
 			if (node.type === 'VariableDeclarator') {
-				var id = node.id;
-				scope.properties.push({key: id, value: id});
+				if (!node.isLocal) {
+					var id = node.id;
+					scope.properties.push({key: id, value: id});
+				}
 			} else
 			for (var name in node) {
 				var subNode = node[name];
@@ -192,7 +194,7 @@ program
 
 block
 	: block stmt {
-		($$ = $1).body.push($2);
+		$1.body.push($2);
 	}
 	| stmt -> block($1)
 	;
@@ -227,7 +229,11 @@ stmt
 
 vardef
 	: vardef_file
-	| vardef_local
+	| vardef_local {
+		$1.forEach(function (declaration) {
+			declaration.isLocal = true;
+		});
+	}
 	;
 
 vardef_file
@@ -235,7 +241,7 @@ vardef_file
 	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($3, $2))}]
 	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($2))}]
 	| vardef_file ',' ident {
-		($$ = $1).push({id: $3, init: $1[0].init});
+		$1.push({id: $3, init: $1[0].init});
 	}
 	;
 
@@ -243,16 +249,16 @@ vardef_local
 	: LOCAL IDENT ident '=' e -> [{id: $3, init: $5}]
 	| LOCAL IDENT ident -> [{id: $3}]
 	| vardef_local ',' ident '=' e {
-		($$ = $1).push({id: $3, init: $5});
+		$1.push({id: $3, init: $5});
 	}
 	| vardef_local ',' ident {
-		($$ = $1).push({id: $3});
+		$1.push({id: $3});
 	}
 	;
 
 args
 	: args ',' e {
-		($$ = $1).push($3);
+		$1.push($3);
 	}
 	| e -> [$1]
 	;

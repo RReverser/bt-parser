@@ -51,7 +51,7 @@ while( !FEof() )
     }
     else
     {
-        Warning( "Unknown ZIP tag encountered.\nTemplate stopped." );
+        Warning( "Unknown ZIP tag encountered.\nTemplate stopped.", true );
         local char c = 'a';
         return -1;
     }
