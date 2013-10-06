@@ -72,7 +72,13 @@
 			declaration.type = 'VariableDeclarator';
 			return declaration /* id, init */;
 		});
-	}, {kind: 'var'});
+	}, {
+		kind: 'var',
+		toFileVars: function () {
+			this.jb_isFile = true;
+			return this;
+		}
+	});
 	var inContext = def('WithStatement', ['object', 'body']);
 	var stmt = def('ExpressionStatement', ['expression']);
 	var block = def('BlockStatement', 'body');
@@ -95,14 +101,18 @@
 		return member(id('$TYPESET'), literal(name), true);
 	};
 
-	var jb_struct = function (block, defineId) {
+	var jb_struct = function (keyword, $block, defineId) {
+		if (keyword === 'union') jb_init_union($block);
+
 		var scope = obj();
 
 		(function traverse(node) {
-			if (node.type === 'VariableDeclarator') {
-				if (!node.isLocal) {
-					var id = node.id;
-					scope.properties.push({key: id, value: id});
+			if (node.type === 'VariableDeclaration') {
+				if (node.jb_isFile) {
+					node.declarations.forEach(function (declaration) {
+						var id = declaration.id;
+						scope.properties.push({key: id, value: id});
+					});
 				}
 			} else
 			for (var name in node) {
@@ -111,14 +121,14 @@
 					traverse(subNode);
 				}
 			}
-		})(block);
+		})($block);
 
-		block.body.push(ret(scope));
+		$block.body.push(ret(scope));
 
 		var expr = call(member(id('jBinary'), id('Type')), [
 			obj({
 				key: id('read'),
-				value: func([], block)
+				value: func([], $block)
 			})
 		]);
 
@@ -127,6 +137,58 @@
 		}
 
 		return expr;
+	};
+
+	var jb_init_union = function ($block) {
+		(function traverse(node) {
+			for (var name in node) {
+				var subNode = node[name];
+				if (typeof subNode === 'object') {
+					if (subNode.type === 'VariableDeclaration') {
+						if (subNode.jb_isFile) {
+							var replaceNode = node[name] = block();
+							subNode.declarations.forEach(function (declaration) {
+								replaceNode.body.push(
+									vars(declaration).toFileVars(),
+									stmt(assign(
+										id('$OFFSET_END'),
+										call(
+											member(id('Math'), id('max')),
+											[
+												id('$OFFSET_END'), 
+												call(member(id('$BINARY'), id('tell')))
+											]
+										)
+									)),
+									stmt(call(
+										member(id('$BINARY'), id('seek')),
+										[id('$OFFSET_BEGIN')]
+									))
+								);
+							});
+						}
+					} else {
+						traverse(subNode);
+					}
+				}
+			}
+		})($block);
+
+		$block.body.unshift(vars(
+			{
+				id: id('$OFFSET_BEGIN'),
+				init: call(member(id('$BINARY'), id('tell')))
+			},
+			{
+				id: id('$OFFSET_END'),
+				init: id('$OFFSET_BEGIN')
+			}
+		));
+
+		$block.body.push(stmt(call(
+			member(id('$BINARY'), id('seek')),
+			[id('$OFFSET_END')]
+		)));
 	};
 %}
 
@@ -141,6 +203,7 @@
 'true'|'false'				return 'BOOL_CONST';
 'if'|'else'|'do'|'while'|'return'|'local'|'struct'
 							return yytext.toUpperCase();
+'union'						return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
 ([+\-*/%&^|]|'<<'|'>>')'='	return 'OP_ASSIGN_COMPLEX';
 [*/]						return 'OP_MUL';
@@ -220,26 +283,22 @@ stmt
 	| WHILE '(' e ')' stmt -> while_do($3, $5)
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| bblock
-	| STRUCT IDENT bblock ';' -> stmt(jb_struct($3, $2))
-	| vardef ';' -> vars.apply(null, $1)
+	| STRUCT IDENT bblock ';' -> stmt(jb_struct($1, $3, $2))
+	| vardef ';'
 	| RETURN e ';' -> ret($2)
 	| e ';' -> stmt($1)
 	| ';' -> empty()
 	;
 
 vardef
-	: vardef_file
-	| vardef_local {
-		$1.forEach(function (declaration) {
-			declaration.isLocal = true;
-		});
-	}
+	: vardef_file -> vars.apply(null, $1).toFileVars()
+	| vardef_local -> vars.apply(null, $1)
 	;
 
 vardef_file
 	: IDENT ident -> [{id: $2, init: jb_read(jb_type($1))}]
-	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($3, $2))}]
-	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($2))}]
+	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($1, $3, $2))}]
+	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($1, $2))}]
 	| vardef_file ',' ident {
 		$1.push({id: $3, init: $1[0].init});
 	}
@@ -283,7 +342,7 @@ e
 	| e '?' e ':' e -> ternary($1, $3, $5)
 	| '(' e ')' -> $2
 	| ident '(' args ')' -> call($1, $3)
-	| ident '(' ')' -> call($1, [])
+	| ident '(' ')' -> call($1)
 	| ident
 	| literal
 	;
