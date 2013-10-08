@@ -1,15 +1,12 @@
 {
   "name": "bt-parser",
   "description": "JS parser for 010 Editor Binary Templates",
-  "main": "parse.js",
+  "main": "index.js",
   "version": "0.0.0",
   "dependencies": {
     "source-map": "~0.1.29",
     "escodegen": "0.0.27",
     "jison": "~0.4.13"
-  },
-  "scripts": {
-    "test": "node parse.js"
   },
   "repository": {
     "type": "git",
