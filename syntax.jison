@@ -146,25 +146,8 @@
 				if (typeof subNode === 'object') {
 					if (subNode.type === 'VariableDeclaration') {
 						if (subNode.jb_isFile) {
-							var replaceNode = node[name] = block();
 							subNode.declarations.forEach(function (declaration) {
-								replaceNode.body.push(
-									vars(declaration).toFileVars(),
-									stmt(assign(
-										id('$OFFSET_END'),
-										call(
-											member(id('Math'), id('max')),
-											[
-												id('$OFFSET_END'), 
-												call(member(id('$BINARY'), id('tell')))
-											]
-										)
-									)),
-									stmt(call(
-										member(id('$BINARY'), id('seek')),
-										[id('$OFFSET_BEGIN')]
-									))
-								);
+								declaration.init.callee.object = id('$UNION');
 							});
 						}
 					} else {
@@ -174,20 +157,13 @@
 			}
 		})($block);
 
-		$block.body.unshift(vars(
-			{
-				id: id('$OFFSET_BEGIN'),
-				init: call(member(id('$BINARY'), id('tell')))
-			},
-			{
-				id: id('$OFFSET_END'),
-				init: id('$OFFSET_BEGIN')
-			}
-		));
+		$block.body.unshift(vars({
+			id: id('$UNION'),
+			init: create(id('JB_UNION'), [id('$BINARY')])
+		}));
 
 		$block.body.push(stmt(call(
-			member(id('$BINARY'), id('seek')),
-			[id('$OFFSET_END')]
+			member(id('$UNION'), id('done'))
 		)));
 	};
 %}

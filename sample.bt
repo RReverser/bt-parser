@@ -8,6 +8,7 @@ union {
 	struct {
 		uint y, y0;
 	} b;
+    float f1, f2;
 } obj;
 
 A a;
