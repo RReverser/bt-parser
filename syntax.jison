@@ -102,26 +102,45 @@
 	};
 
 	var jb_struct = function (keyword, $block, defineId) {
-		if (keyword === 'union') jb_init_union($block);
-
-		var scope = obj();
+		var scope = obj(),
+			isUnion = keyword === 'union';
 
 		(function traverse(node) {
 			if (node.type === 'VariableDeclaration') {
 				if (node.jb_isFile) {
 					node.declarations.forEach(function (declaration) {
-						var id = declaration.id;
-						scope.properties.push({key: id, value: id});
+						var name = declaration.id;
+
+						scope.properties.push({
+							key: name,
+							value: name
+						});
+
+						if (isUnion) {
+							declaration.init.callee.object = id('$UNION');
+						}
 					});
 				}
-			} else
-			for (var name in node) {
-				var subNode = node[name];
-				if (typeof subNode === 'object') {
-					traverse(subNode);
+			} else {
+				for (var name in node) {
+					var subNode = node[name];
+					if (typeof subNode === 'object') {
+						traverse(subNode);
+					}
 				}
 			}
 		})($block);
+
+		if (isUnion) {
+			$block.body.unshift(vars({
+				id: id('$UNION'),
+				init: create(id('JB_UNION'), [id('$BINARY')])
+			}));
+
+			$block.body.push(stmt(call(
+				member(id('$UNION'), id('done'))
+			)));
+		}
 
 		$block.body.push(ret(scope));
 
@@ -137,34 +156,6 @@
 		}
 
 		return expr;
-	};
-
-	var jb_init_union = function ($block) {
-		(function traverse(node) {
-			for (var name in node) {
-				var subNode = node[name];
-				if (typeof subNode === 'object') {
-					if (subNode.type === 'VariableDeclaration') {
-						if (subNode.jb_isFile) {
-							subNode.declarations.forEach(function (declaration) {
-								declaration.init.callee.object = id('$UNION');
-							});
-						}
-					} else {
-						traverse(subNode);
-					}
-				}
-			}
-		})($block);
-
-		$block.body.unshift(vars({
-			id: id('$UNION'),
-			init: create(id('JB_UNION'), [id('$BINARY')])
-		}));
-
-		$block.body.push(stmt(call(
-			member(id('$UNION'), id('done'))
-		)));
 	};
 %}
 
