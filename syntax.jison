@@ -1,5 +1,7 @@
 %{
 	function def(type, init, proto) {
+		proto = proto || {};
+
 		function Class() {
 			var instance = Object.create(Class.prototype),
 				args = Array.prototype.slice.call(arguments),
@@ -16,9 +18,11 @@
 
 				case 'object':
 					init.forEach(function (key, i) {
-						if (args[i] !== undefined) {
-							instance[key] = args[i];
+						var value = args[i];
+						if (value === undefined) {
+							value = proto[key];
 						}
+						instance[key] = value;
 					});
 					break;
 			}
@@ -26,7 +30,7 @@
 			return instance;
 		}
 
-		Class.prototype = proto || {};
+		Class.prototype = proto;
 		Class.prototype.type = type;
 		Class.prototype.constructor = Class;
 		Object.defineProperty(Class.prototype, '__init__', {value: init});
@@ -92,6 +96,13 @@
 	var while_do = def('WhileStatement', ['test', 'body']);
 	var do_while = def('DoWhileStatement', ['body', 'test']);
 	var empty = def('EmptyStatement');
+	var brk = def('BreakStatement', ['label']);
+	var switch_case = def('SwitchCase', ['test', 'consequent'], {
+		consequent: []
+	});
+	var switch_of = def('SwitchStatement', ['discriminant', 'cases'], {
+		cases: []
+	});
 
 	var jb_read = function (type) {
 		return call(member(id('$BINARY'), id('read')), [type]);
@@ -169,6 +180,7 @@
 ('"'.*'"')|("'"."'")		return 'STRING';
 'true'|'false'				return 'BOOL_CONST';
 'if'|'else'|'do'|'while'|'return'|'local'|'struct'
+|'switch'|'case'|'break'|'default'
 							return yytext.toUpperCase();
 'union'						return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
@@ -219,14 +231,13 @@ program
 		}));
 		return $1;
 	}
-	| EOF { return program() }
 	;
 
 block
 	: block stmt {
 		$1.body.push($2);
 	}
-	| stmt -> block($1)
+	| -> block()
 	;
 
 ident
@@ -241,7 +252,6 @@ literal
 
 bblock
 	: '{' block '}' -> $2
-	| '{' '}' -> block()
 	;
 
 stmt
@@ -249,12 +259,26 @@ stmt
 	| IF '(' e ')' stmt -> cond($3, $5)
 	| WHILE '(' e ')' stmt -> while_do($3, $5)
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
-	| bblock
 	| STRUCT IDENT bblock ';' -> stmt(jb_struct($1, $3, $2))
+	| SWITCH '(' e ')' '{' switch_cases '}' -> switch_of($3, $6)
+	| BREAK ';' -> brk()
+	| bblock
 	| vardef ';'
 	| RETURN e ';' -> ret($2)
 	| e ';' -> stmt($1)
 	| ';' -> empty()
+	;
+
+switch_cases
+	: switch_cases switch_case_condition ':' block {
+		$1.push(switch_case($2, $4.body));
+	}
+	| -> []
+	;
+
+switch_case_condition
+	: CASE e -> $2
+	| DEFAULT -> null
 	;
 
 vardef
@@ -263,12 +287,12 @@ vardef
 	;
 
 vardef_file
-	: IDENT ident -> [{id: $2, init: jb_read(jb_type($1))}]
-	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($1, $3, $2))}]
-	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($1, $2))}]
-	| vardef_file ',' ident {
+	: vardef_file ',' ident {
 		$1.push({id: $3, init: $1[0].init});
 	}
+	| IDENT ident -> [{id: $2, init: jb_read(jb_type($1))}]
+	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($1, $3, $2))}]
+	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($1, $2))}]
 	;
 
 vardef_local
