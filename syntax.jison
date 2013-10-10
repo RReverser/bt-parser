@@ -192,7 +192,7 @@
 [<>]'='?					return 'OP_RELATION';
 [!=]'='						return 'OP_EQUAL';
 [!~]						return 'OP_NOT';
-'&&'|'||'|[(){}:;,?&^|=]
+'&&'|'||'|[(){}:;,?&^|=\.]
 							return yytext;
 <<EOF>>						return 'EOF';
 
@@ -242,6 +242,11 @@ block
 
 ident
 	: IDENT -> id($1)
+	;
+
+member
+	: member '.' ident -> member($1, $3)
+	| ident
 	;
 
 literal
@@ -325,16 +330,16 @@ e
 	| e '|' e -> binary($1, $2, $3)
 	| e '&&' e -> binary($1, $2, $3)
 	| e '||' e -> binary($1, $2, $3)
-	| ident OP_ASSIGN_COMPLEX e -> assign($1, $3, $2)
-	| ident '=' e -> assign($1, $3)
+	| member OP_ASSIGN_COMPLEX e -> assign($1, $3, $2)
+	| member '=' e -> assign($1, $3)
 	| OP_NOT e -> unary($1, $2)
 	| OP_ADD e -> unary($1, $2)
-	| OP_UPDATE ident -> update($2, $1, true)
-	| ident OP_UPDATE -> update($1, $2)
+	| OP_UPDATE member -> update($2, $1, true)
+	| member OP_UPDATE -> update($1, $2)
 	| e '?' e ':' e -> ternary($1, $3, $5)
 	| '(' e ')' -> $2
 	| ident '(' args ')' -> call($1, $3)
 	| ident '(' ')' -> call($1)
-	| ident
+	| member
 	| literal
 	;

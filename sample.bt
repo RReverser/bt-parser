@@ -28,6 +28,7 @@ union {
 } obj;
 
 A a;
+local uint temp_x = a.x;
 
 // Define the file
 local uint tag;
