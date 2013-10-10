@@ -83,7 +83,6 @@
 			return this;
 		}
 	});
-	var inContext = def('WithStatement', ['object', 'body']);
 	var stmt = def('ExpressionStatement', ['expression']);
 	var block = def('BlockStatement', 'body');
 	var ret = def('ReturnStatement', ['argument']);
@@ -103,6 +102,7 @@
 	var switch_of = def('SwitchStatement', ['discriminant', 'cases'], {
 		cases: []
 	});
+	var for_cond = def('ForStatement', ['init', 'test', 'update', 'body']);
 
 	var jb_read = function (type) {
 		return call(member(id('$BINARY'), id('read')), [type]);
@@ -180,7 +180,7 @@
 ('"'.*'"')|("'"."'")		return 'STRING';
 'true'|'false'				return 'BOOL_CONST';
 'if'|'else'|'do'|'while'|'return'|'local'|'struct'
-|'switch'|'case'|'break'|'default'
+|'switch'|'case'|'break'|'default'|'for'
 							return yytext.toUpperCase();
 'union'						return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
@@ -259,6 +259,7 @@ stmt
 	| IF '(' e ')' stmt -> cond($3, $5)
 	| WHILE '(' e ')' stmt -> while_do($3, $5)
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
+	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($3, $5, $7, $9)
 	| STRUCT IDENT bblock ';' -> stmt(jb_struct($1, $3, $2))
 	| SWITCH '(' e ')' '{' switch_cases '}' -> switch_of($3, $6)
 	| BREAK ';' -> brk()

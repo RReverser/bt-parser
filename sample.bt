@@ -12,6 +12,10 @@ switch (value) {
         d;
 };//--------------------------------------------
 
+for (i = 0; i < 3; i++) {
+    callfunc(i);
+}
+
 union {
 	local uint z = 0, z0;
 	struct A {
