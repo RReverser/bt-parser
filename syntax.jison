@@ -21,6 +21,9 @@
 						var value = args[i];
 						if (value === undefined) {
 							value = proto[key];
+							if (value !== null && typeof value === 'object') {
+								value = value instanceof Array ? value.slice() : Object.create(value);
+							}
 						}
 						instance[key] = value;
 					});
@@ -69,8 +72,12 @@
 	});
 	var assign = def('AssignmentExpression', ['left', 'right', 'operator'], {operator: '='});
 	var update = def('UpdateExpression', ['argument', 'operator', 'prefix']);
-	var call = def('CallExpression', ['callee', 'arguments'], {arguments: []});
-	var create = def('NewExpression', ['callee', 'arguments'], {arguments: []});
+	var call = def('CallExpression', ['callee', 'arguments'], {
+		arguments: []
+	});
+	var create = def('NewExpression', ['callee', 'arguments'], {
+		arguments: []
+	});
 	var vars = def('VariableDeclaration', function () {
 		this.declarations = Array.prototype.map.call(arguments, function (declaration) {
 			declaration.type = 'VariableDeclarator';
@@ -180,7 +187,7 @@
 ('"'.*'"')|("'"."'")		return 'STRING';
 'true'|'false'				return 'BOOL_CONST';
 'if'|'else'|'do'|'while'|'return'|'local'|'struct'
-|'switch'|'case'|'break'|'default'|'for'
+|'switch'|'case'|'break'|'default'|'for'|'typedef'
 							return yytext.toUpperCase();
 'union'						return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
@@ -192,7 +199,7 @@
 [<>]'='?					return 'OP_RELATION';
 [!=]'='						return 'OP_EQUAL';
 [!~]						return 'OP_NOT';
-'&&'|'||'|[(){}:;,?&^|=\.]
+'&&'|'||'|[(){}\[\]:;,?&^|=\.]
 							return yytext;
 <<EOF>>						return 'EOF';
 
@@ -246,6 +253,7 @@ ident
 
 member
 	: member '.' ident -> member($1, $3)
+	| member index -> member($1, $2, true)
 	| ident
 	;
 
@@ -266,6 +274,7 @@ stmt
 	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
 	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($3, $5, $7, $9)
 	| STRUCT IDENT bblock ';' -> stmt(jb_struct($1, $3, $2))
+	| TYPEDEF vardef_file ';' -> stmt(assign(jb_type($2[0].id.name), $2[0].jb_type))
 	| SWITCH '(' e ')' '{' switch_cases '}' -> switch_of($3, $6)
 	| BREAK ';' -> brk()
 	| bblock
@@ -287,18 +296,37 @@ switch_case_condition
 	| DEFAULT -> null
 	;
 
+index
+	: '[' e ']' -> $2
+	;
+
 vardef
-	: vardef_file -> vars.apply(null, $1).toFileVars()
+	: vardef_file {
+		$1.forEach(function (declaration) {
+			declaration.init = jb_read(declaration.jb_type);
+		});
+		$$ = vars.apply(null, $1).toFileVars();
+	}
 	| vardef_local -> vars.apply(null, $1)
 	;
 
 vardef_file
 	: vardef_file ',' ident {
-		$1.push({id: $3, init: $1[0].init});
+		var first = $1[0];
+		$1.push({id: $3, jb_type: first.jb_item_type || first.jb_type});
 	}
-	| IDENT ident -> [{id: $2, init: jb_read(jb_type($1))}]
-	| STRUCT IDENT bblock ident -> [{id: $4, init: jb_read(jb_struct($1, $3, $2))}]
-	| STRUCT bblock ident -> [{id: $3, init: jb_read(jb_struct($1, $2))}]
+	| vardef_file index {
+		var last = $1[$1.length - 1];
+
+		last.jb_type = array(
+			literal('array'),
+			last.jb_item_type = last.jb_type,
+			$2
+		);
+	}
+	| IDENT ident -> [{id: $2, jb_type: jb_type($1)}]
+	| STRUCT IDENT bblock ident -> [{id: $4, jb_type: jb_struct($1, $3, $2)}]
+	| STRUCT bblock ident -> [{id: $3, jb_type: jb_struct($1, $2)}]
 	;
 
 vardef_local
