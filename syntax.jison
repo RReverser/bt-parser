@@ -175,6 +175,17 @@
 
 		return expr;
 	};
+
+	var jb_repeatType = function (declaration, type) {
+		if ('jb_count' in declaration) {
+			type = array(
+				literal('array'),
+				type,
+				declaration.jb_count
+			);
+		}
+		return type;
+	};
 %}
 
 %lex
@@ -227,124 +238,131 @@
 
 %start program
 
+%ebnf
+
 %% /* language grammar */
 
 program
 	: block EOF {
-		$1.type = 'Program';
-		$1.body.unshift(vars({
+		$block.type = 'Program';
+		$block.body.unshift(vars({
 			id: id('$TYPESET'),
 			init: member(id('$BINARY'), id('typeSet'))
 		}));
-		return $1;
+		return $block;
 	}
 	;
 
 block
-	: block stmt {
-		$1.body.push($2);
-	}
-	| -> block()
+	: stmt*[stmts] -> block.apply(null, $stmts)
+	;
+
+bblock
+	: '{' block '}' -> $block
 	;
 
 ident
-	: IDENT -> id($1)
+	: IDENT -> id($IDENT)
 	;
 
 member
-	: member '.' ident -> member($1, $3)
-	| member index -> member($1, $2, true)
+	: member '.' ident -> member($member, $ident)
+	| member index -> member($member, $index, true)
 	| ident
 	;
 
 literal
-	: NUMBER -> literal(Number($1))
-	| STRING -> literal(JSON.parse('"' + $1.slice(1, -1) + '"'))
-	| BOOL_CONST -> literal(Boolean($1))
-	;
-
-bblock
-	: '{' block '}' -> $2
+	: NUMBER -> literal(Number($NUMBER))
+	| STRING -> literal(JSON.parse('"' + $STRING.slice(1, -1) + '"'))
+	| BOOL_CONST -> literal(Boolean($BOOL_CONST))
 	;
 
 stmt
-	: IF '(' e ')' stmt ELSE stmt -> cond($3, $5, $7)
-	| IF '(' e ')' stmt -> cond($3, $5)
-	| WHILE '(' e ')' stmt -> while_do($3, $5)
-	| DO stmt WHILE '(' e ')' -> do_while($2, $5)
-	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($3, $5, $7, $9)
-	| STRUCT IDENT bblock ';' -> stmt(jb_struct($1, $3, $2))
-	| TYPEDEF vardef_file ';' -> stmt(assign(jb_type($2[0].id.name), $2[0].jb_type))
-	| SWITCH '(' e ')' '{' switch_cases '}' -> switch_of($3, $6)
+	: IF '(' e ')' stmt ELSE stmt -> cond($e, $stmt1, $stmt2)
+	| IF '(' e ')' stmt -> cond($e, $stmt)
+	| WHILE '(' e ')' stmt -> while_do($e, $stmt)
+	| DO stmt WHILE '(' e ')' -> do_while($stmt, $e)
+	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, $e2, $e3, $stmt)
+	| STRUCT IDENT[type] bblock ';' -> stmt(jb_struct($STRUCT, $bblock, $type))
+	| TYPEDEF vardef_file ';' {
+		var firstItem = $vardef_file.items[0];
+
+		$$ = stmt(assign(
+			jb_type(firstItem.id.name),
+			jb_repeatType(firstItem, $vardef_file.type)
+		));
+	}
+	| SWITCH '(' e ')' '{' switch_case*[cases] '}' -> switch_of($e, $cases)
 	| BREAK ';' -> brk()
 	| bblock
 	| vardef ';'
-	| RETURN e ';' -> ret($2)
-	| e ';' -> stmt($1)
+	| RETURN e ';' -> ret($e)
+	| e ';' -> stmt($e)
 	| ';' -> empty()
 	;
 
-switch_cases
-	: switch_cases switch_case_condition ':' block {
-		$1.push(switch_case($2, $4.body));
-	}
-	| -> []
+switch_case
+	: switch_condition ':' block -> switch_case($switch_condition, $block)
 	;
 
-switch_case_condition
-	: CASE e -> $2
+switch_condition
+	: CASE e -> $e
 	| DEFAULT -> null
 	;
 
 index
-	: '[' e ']' -> $2
+	: '[' e ']' -> $e
 	;
 
 vardef
 	: vardef_file {
-		$1.forEach(function (declaration) {
-			declaration.init = jb_read(declaration.jb_type);
+		$vardef_file.items.forEach(function (declaration) {
+			declaration.init = jb_read(jb_repeatType(
+				declaration,
+				$vardef_file.type
+			));
 		});
-		$$ = vars.apply(null, $1).toFileVars();
+		$$ = vars.apply(null, $vardef_file.items).toFileVars();
 	}
-	| vardef_local -> vars.apply(null, $1)
+	| vardef_local -> vars.apply(null, $vardef_local)
 	;
 
 vardef_file
-	: vardef_file ',' ident {
-		var first = $1[0];
-		$1.push({id: $3, jb_type: first.jb_item_type || first.jb_type});
-	}
-	| vardef_file index {
-		var last = $1[$1.length - 1];
+	: IDENT[type] vardef_file_items -> {items: $vardef_file_items, type: jb_type($type)}
+	| STRUCT IDENT[type] bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock, $type)}
+	| STRUCT bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock)}
+	;
 
-		last.jb_type = array(
-			literal('array'),
-			last.jb_item_type = last.jb_type,
-			$2
-		);
+vardef_file_items
+	: (vardef_file_item ',')* vardef_file_item {
+		$$.push($vardef_file_item);
 	}
-	| IDENT ident -> [{id: $2, jb_type: jb_type($1)}]
-	| STRUCT IDENT bblock ident -> [{id: $4, jb_type: jb_struct($1, $3, $2)}]
-	| STRUCT bblock ident -> [{id: $3, jb_type: jb_struct($1, $2)}]
+	;
+
+vardef_file_item
+	: ident index -> {id: $ident, jb_count: $index}
+	| ident -> {id: $ident}
 	;
 
 vardef_local
-	: LOCAL IDENT ident '=' e -> [{id: $3, init: $5}]
-	| LOCAL IDENT ident -> [{id: $3}]
-	| vardef_local ',' ident '=' e {
-		$1.push({id: $3, init: $5});
-	}
-	| vardef_local ',' ident {
-		$1.push({id: $3});
+	: LOCAL IDENT vardef_local_items -> $vardef_local_items
+	;
+
+vardef_local_items
+	: (vardef_local_item ',')* vardef_local_item {
+		$$.push($vardef_local_item);
 	}
 	;
 
+vardef_local_item
+	: ident '=' e -> {id: $ident, init: $e}
+	| ident -> {id: $ident}
+	;
+
 args
-	: args ',' e {
-		$1.push($3);
+	: (e ',')* e {
+		$$.push($e);
 	}
-	| e -> [$1]
 	;
 
 e
@@ -358,16 +376,16 @@ e
 	| e '|' e -> binary($1, $2, $3)
 	| e '&&' e -> binary($1, $2, $3)
 	| e '||' e -> binary($1, $2, $3)
-	| member OP_ASSIGN_COMPLEX e -> assign($1, $3, $2)
-	| member '=' e -> assign($1, $3)
-	| OP_NOT e -> unary($1, $2)
-	| OP_ADD e -> unary($1, $2)
-	| OP_UPDATE member -> update($2, $1, true)
-	| member OP_UPDATE -> update($1, $2)
-	| e '?' e ':' e -> ternary($1, $3, $5)
-	| '(' e ')' -> $2
-	| ident '(' args ')' -> call($1, $3)
-	| ident '(' ')' -> call($1)
+	| member OP_ASSIGN_COMPLEX e -> assign($member, $e, $OP_ASSIGN_COMPLEX)
+	| member '=' e -> assign($member, $e)
+	| OP_NOT e -> unary($OP_NOT, $e)
+	| OP_ADD e -> unary($OP_ADD, $e)
+	| OP_UPDATE member -> update($member, $OP_UPDATE, true)
+	| member OP_UPDATE -> update($member, $OP_UPDATE)
+	| e '?' e ':' e -> ternary($e1, $e2, $e3)
+	| '(' e ')' -> $e
+	| ident '(' args ')' -> call($ident, $args)
+	| ident '(' ')' -> call($ident)
 	| member
 	| literal
 	;
