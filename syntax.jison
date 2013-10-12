@@ -194,17 +194,21 @@
 		return expr;
 	};
 
-	var jb_repeatType = function (declaration, type) {
-		if (declaration.jb_args !== undefined) {
-			type = array.apply(null, [type].concat(declaration.jb_args));
-		}
+	var jb_fitType = function (declaration, type) {
+		if ('jb_bits' in declaration) {
+			type = array(jb_type('bitfield'), declaration.jb_bits);
+		} else {
+			if ('jb_args' in declaration) {
+				type = array.apply(null, [type].concat(declaration.jb_args));
+			}
 
-		if (declaration.jb_count !== undefined) {
-			type = array(
-				literal('array'),
-				type,
-				declaration.jb_count
-			);
+			if (declaration.jb_count !== undefined) {
+				type = array(
+					literal('array'),
+					type,
+					declaration.jb_count
+				);
+			}
 		}
 
 		return type;
@@ -223,6 +227,7 @@
 ('if'|'else'|'do'|'while'|'return'|'local'|'struct'
 |'switch'|'case'|'break'|'default'|'for'|'typedef')\b
 							return yytext.toUpperCase();
+'const'						return 'LOCAL';
 'union'						return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
 ([+\-*/%&^|]|'<<'|'>>')'='	return 'OP_ASSIGN_COMPLEX';
@@ -317,7 +322,7 @@ stmt
 
 		$$ = stmt(assign(
 			jb_type(firstItem.id.name),
-			jb_repeatType(firstItem, $vardef_file.type)
+			jb_fitType(firstItem, $vardef_file.type)
 		));
 	}
 	| SWITCH '(' e ')' '{' switch_case*[cases] '}' -> switch_of($e, $cases)
@@ -362,7 +367,7 @@ index
 vardef
 	: vardef_file {
 		$vardef_file.items.forEach(function (declaration) {
-			declaration.init = jb_read(jb_repeatType(
+			declaration.init = jb_read(jb_fitType(
 				declaration,
 				$vardef_file.type
 			));
@@ -387,6 +392,7 @@ vardef_file_items
 vardef_file_item
 	: ident '(' arg_items ')' index?[jb_count] -> {id: $ident, jb_count: $jb_count, jb_args: $arg_items}
 	| ident index?[jb_count] -> {id: $ident, jb_count: $jb_count}
+	| ident ':' e -> {id: $ident, jb_bits: $e}
 	;
 
 vardef_local

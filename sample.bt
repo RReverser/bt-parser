@@ -96,3 +96,5 @@ struct Varray (int arraySize)
 }; 
 
 Varray x(10), y(5);
+
+int x: 3, y: 5;
