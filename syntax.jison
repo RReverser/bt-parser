@@ -195,6 +195,10 @@
 	};
 
 	var jb_repeatType = function (declaration, type) {
+		if (declaration.jb_args !== undefined) {
+			type = array.apply(null, [type].concat(declaration.jb_args));
+		}
+
 		if (declaration.jb_count !== undefined) {
 			type = array(
 				literal('array'),
@@ -202,6 +206,7 @@
 				declaration.jb_count
 			);
 		}
+
 		return type;
 	};
 %}
@@ -237,6 +242,7 @@
 %left ';'
 %nonassoc IF
 %right ELSE
+%left ','
 %right OP_ASSIGN_COMPLEX
 %right '='
 %right ':'
@@ -325,10 +331,15 @@ stmt
 	;
 
 argdefs
-	: '(' (argdef ',')*[argdef_items] argdef ')' {
-		($$ = $argdef_items).push($argdef);
-	}
+	: '(' argdef_items ')' -> $argdef_items
 	| '(' ')' -> []
+	;
+
+argdef_items
+	: argdef_items ',' argdef {
+		$$.push($argdef);
+	}
+	| argdef -> [$argdef]
 	;
 
 argdef
@@ -374,7 +385,8 @@ vardef_file_items
 	;
 
 vardef_file_item
-	: ident index?[jb_count] -> {id: $ident, jb_count: $jb_count}
+	: ident '(' arg_items ')' index?[jb_count] -> {id: $ident, jb_count: $jb_count, jb_args: $arg_items}
+	| ident index?[jb_count] -> {id: $ident, jb_count: $jb_count}
 	;
 
 vardef_local
@@ -382,9 +394,10 @@ vardef_local
 	;
 
 vardef_local_items
-	: (vardef_local_item ',')* vardef_local_item {
+	: vardef_local_items ',' vardef_local_item {
 		$$.push($vardef_local_item);
 	}
+	| vardef_local_item -> [$vardef_local_item]
 	;
 
 vardef_local_item
@@ -393,10 +406,14 @@ vardef_local_item
 	;
 
 args
-	: '(' (e ',')*[arg_items] e ')' {
-		($$ = $arg_items).push($e);
+	: '(' arg_items?[args_opt] ')' -> $args_opt
+	;
+
+arg_items
+	: arg_items ',' e {
+		$$.push($e);
 	}
-	| '(' ')' -> []
+	| e -> [$e]
 	;
 
 e

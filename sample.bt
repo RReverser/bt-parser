@@ -89,8 +89,10 @@ int sumOf(uint a, uint b) {
     return a + b;
 }
 
-struct namr (int arraySize)
-    {
-        int id;
-        int array[arraySize];
-    }; 
+struct Varray (int arraySize)
+{
+    int id;
+    int array[arraySize];
+}; 
+
+Varray x(10), y(5);
