@@ -196,9 +196,9 @@
 \s+						    /* skip whitespace */
 \d+('.'\d+)?\b				return 'NUMBER';
 ('"'.*'"')|("'"."'")		return 'STRING';
-'true'|'false'				return 'BOOL_CONST';
-'if'|'else'|'do'|'while'|'return'|'local'|'struct'
-|'switch'|'case'|'break'|'default'|'for'|'typedef'
+('true'|'false')\b			return 'BOOL_CONST';
+('if'|'else'|'do'|'while'|'return'|'local'|'struct'
+|'switch'|'case'|'break'|'default'|'for'|'typedef')\b
 							return yytext.toUpperCase();
 'union'						return 'STRUCT';
 [\w][\w\d]*					return 'IDENT';
@@ -283,7 +283,7 @@ stmt
 	| WHILE '(' e ')' stmt -> while_do($e, $stmt)
 	| DO stmt WHILE '(' e ')' -> do_while($stmt, $e)
 	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, $e2, $e3, $stmt)
-	| STRUCT IDENT[type] bblock ';' -> stmt(jb_struct($STRUCT, $bblock, $type))
+	| STRUCT IDENT bblock ';' -> stmt(jb_struct($STRUCT, $bblock, $IDENT))
 	| TYPEDEF vardef_file ';' {
 		var firstItem = $vardef_file.items[0];
 
@@ -328,8 +328,8 @@ vardef
 	;
 
 vardef_file
-	: IDENT[type] vardef_file_items -> {items: $vardef_file_items, type: jb_type($type)}
-	| STRUCT IDENT[type] bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock, $type)}
+	: IDENT vardef_file_items -> {items: $vardef_file_items, type: jb_type($IDENT)}
+	| STRUCT IDENT bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock, $IDENT)}
 	| STRUCT bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock)}
 	;
 
@@ -360,9 +360,10 @@ vardef_local_item
 	;
 
 args
-	: (e ',')* e {
-		$$.push($e);
+	: '(' (e ',')*[arg_items] e ')' {
+		($$ = $arg_items).push($e);
 	}
+	| '(' ')' -> []
 	;
 
 e
@@ -384,8 +385,7 @@ e
 	| member OP_UPDATE -> update($member, $OP_UPDATE)
 	| e '?' e ':' e -> ternary($e1, $e2, $e3)
 	| '(' e ')' -> $e
-	| ident '(' args ')' -> call($ident, $args)
-	| ident '(' ')' -> call($ident)
+	| ident args -> call($ident, $args)
 	| member
 	| literal
 	;

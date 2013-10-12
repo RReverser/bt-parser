@@ -83,3 +83,4 @@ while( !FEof() )
         return -1;
     }
 }
+structx;
