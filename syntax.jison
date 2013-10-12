@@ -94,6 +94,7 @@
 	var block = def('BlockStatement', 'body');
 	var ret = def('ReturnStatement', ['argument']);
 	var func = def('FunctionExpression', ['params', 'body']);
+	var funcdef = def('FunctionDeclaration', ['id', 'params', 'body']);
 	var array = def('ArrayExpression', 'elements');
 	var binary = def('BinaryExpression', ['left', 'operator', 'right']);
 	var unary = def('UnaryExpression', ['operator', 'argument'], {prefix: true});
@@ -294,6 +295,7 @@ stmt
 	}
 	| SWITCH '(' e ')' '{' switch_case*[cases] '}' -> switch_of($e, $cases)
 	| BREAK ';' -> brk()
+	| IDENT ident args bblock -> funcdef($ident, $args, $bblock)
 	| bblock
 	| vardef ';'
 	| RETURN e ';' -> ret($e)
@@ -334,9 +336,10 @@ vardef_file
 	;
 
 vardef_file_items
-	: (vardef_file_item ',')* vardef_file_item {
+	: vardef_file_items ',' vardef_file_item {
 		$$.push($vardef_file_item);
 	}
+	| vardef_file_item -> [$1]
 	;
 
 vardef_file_item

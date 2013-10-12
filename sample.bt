@@ -84,3 +84,7 @@ while( !FEof() )
     }
 }
 structx;
+
+int sumOf(a, b) {
+    return a + b;
+}
