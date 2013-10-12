@@ -88,3 +88,9 @@ structx;
 int sumOf(uint a, uint b) {
     return a + b;
 }
+
+struct namr (int arraySize)
+    {
+        int id;
+        int array[arraySize];
+    }; 

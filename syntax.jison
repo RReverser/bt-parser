@@ -111,6 +111,7 @@
 		cases: []
 	});
 	var for_cond = def('ForStatement', ['init', 'test', 'update', 'body']);
+	var self = def('ThisExpression');
 
 	var jb_read = function (type) {
 		return call(member(id('$BINARY'), id('read')), [type]);
@@ -120,7 +121,7 @@
 		return member(id('$TYPESET'), literal(name), true);
 	};
 
-	var jb_struct = function (keyword, $block, defineId) {
+	var jb_struct = function (keyword, $block, defineId, args) {
 		var scope = obj(),
 			isUnion = keyword === 'union';
 
@@ -163,12 +164,28 @@
 
 		$block.body.push(ret(scope));
 
-		var expr = call(member(id('jBinary'), id('Type')), [
-			obj({
-				key: id('read'),
-				value: func([], $block)
-			})
-		]);
+		var props = [{
+			key: id('read'),
+			value: func([], $block)
+		}];
+
+		if (args) {
+			props.unshift({
+				key: id('params'),
+				value: array.apply(null, args.map(function (arg) {
+					return literal(arg.name);
+				}))
+			});
+
+			$block.body.unshift(vars.apply(null, args.map(function (arg) {
+				return {
+					id: arg,
+					init: member(self(), arg)
+				};
+			})));
+		}
+
+		var expr = call(member(id('jBinary'), id('Type')), [obj.apply(null, props)]);
 
 		if (defineId) {
 			expr = assign(jb_type(defineId), expr);
@@ -279,7 +296,7 @@ literal
 	;
 
 struct
-	: STRUCT IDENT?[struct_name] bblock -> jb_struct($STRUCT, $bblock, $struct_name)
+	: STRUCT IDENT?[struct_name] argdefs?[struct_args] bblock -> jb_struct($STRUCT, $bblock, $struct_name, $struct_args)
 	;
 
 stmt
@@ -299,12 +316,19 @@ stmt
 	}
 	| SWITCH '(' e ')' '{' switch_case*[cases] '}' -> switch_of($e, $cases)
 	| BREAK ';' -> brk()
-	| IDENT ident '(' (argdef ',')*[argdefs] argdef ')' bblock -> funcdef($ident, $argdefs.concat([$argdef]), $bblock)
+	| IDENT ident argdefs bblock -> funcdef($ident, $argdefs, $bblock)
 	| bblock
 	| vardef ';'
 	| RETURN e ';' -> ret($e)
 	| e ';' -> stmt($e)
 	| ';' -> empty()
+	;
+
+argdefs
+	: '(' (argdef ',')*[argdef_items] argdef ')' {
+		($$ = $argdef_items).push($argdef);
+	}
+	| '(' ')' -> []
 	;
 
 argdef
