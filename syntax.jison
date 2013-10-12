@@ -195,7 +195,7 @@
 	};
 
 	var jb_repeatType = function (declaration, type) {
-		if ('jb_count' in declaration) {
+		if (declaration.jb_count !== undefined) {
 			type = array(
 				literal('array'),
 				type,
@@ -374,8 +374,7 @@ vardef_file_items
 	;
 
 vardef_file_item
-	: ident index -> {id: $ident, jb_count: $index}
-	| ident -> {id: $ident}
+	: ident index?[jb_count] -> {id: $ident, jb_count: $jb_count}
 	;
 
 vardef_local

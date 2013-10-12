@@ -20,3 +20,15 @@ JB_UNION.prototype.read = function () {
 JB_UNION.prototype.done = function () {
 	this.seek(this.end);
 };
+
+function JB_ENUM(obj) {
+	var prev = -1;
+	for (var key in obj) {
+		var value = obj[key];
+		if (value === undefined) {
+			value = obj[key] = prev + 1;
+		}
+		prev = value;
+	}
+	return obj;
+}

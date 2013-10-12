@@ -4,7 +4,7 @@ var Parser = require('jison').Parser,
 	escodegen = require('escodegen'),
 	encoding = {encoding: 'utf-8'};
 
-var parser = new Parser(fs.readFileSync('syntax.jison', encoding));
+var parser = new Parser(fs.readFileSync('syntax.jison', encoding), {debug: true});
 
 fs.writeFileSync('out/syntax.js', parser.generate(), encoding);
 parser = require('./out/syntax');
