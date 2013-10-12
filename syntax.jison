@@ -295,12 +295,16 @@ stmt
 	}
 	| SWITCH '(' e ')' '{' switch_case*[cases] '}' -> switch_of($e, $cases)
 	| BREAK ';' -> brk()
-	| IDENT ident args bblock -> funcdef($ident, $args, $bblock)
+	| IDENT ident '(' (argdef ',')*[argdefs] argdef ')' bblock -> funcdef($ident, $argdefs.concat([$argdef]), $bblock)
 	| bblock
 	| vardef ';'
 	| RETURN e ';' -> ret($e)
 	| e ';' -> stmt($e)
 	| ';' -> empty()
+	;
+
+argdef
+	: IDENT ident -> $ident
 	;
 
 switch_case

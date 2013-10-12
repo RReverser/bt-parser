@@ -85,6 +85,6 @@ while( !FEof() )
 }
 structx;
 
-int sumOf(a, b) {
+int sumOf(uint a, uint b) {
     return a + b;
 }
