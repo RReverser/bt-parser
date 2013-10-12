@@ -278,13 +278,17 @@ literal
 	| BOOL_CONST -> literal(Boolean($BOOL_CONST))
 	;
 
+struct
+	: STRUCT IDENT?[struct_name] bblock -> jb_struct($STRUCT, $bblock, $struct_name)
+	;
+
 stmt
 	: IF '(' e ')' stmt ELSE stmt -> cond($e, $stmt1, $stmt2)
 	| IF '(' e ')' stmt -> cond($e, $stmt)
 	| WHILE '(' e ')' stmt -> while_do($e, $stmt)
 	| DO stmt WHILE '(' e ')' -> do_while($stmt, $e)
 	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, $e2, $e3, $stmt)
-	| STRUCT IDENT bblock ';' -> stmt(jb_struct($STRUCT, $bblock, $IDENT))
+	| struct ';' -> stmt($struct)
 	| TYPEDEF vardef_file ';' {
 		var firstItem = $vardef_file.items[0];
 
@@ -335,8 +339,7 @@ vardef
 
 vardef_file
 	: IDENT vardef_file_items -> {items: $vardef_file_items, type: jb_type($IDENT)}
-	| STRUCT IDENT bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock, $IDENT)}
-	| STRUCT bblock vardef_file_items -> {items: $vardef_file_items, type: jb_struct($STRUCT, $bblock)}
+	| struct vardef_file_items -> {items: $vardef_file_items, type: $struct}
 	;
 
 vardef_file_items
