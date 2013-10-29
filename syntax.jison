@@ -352,7 +352,7 @@ argdef
 	;
 
 switch_case
-	: switch_condition ':' block -> switch_case($switch_condition, $block)
+	: switch_condition ':' block -> switch_case($switch_condition, $block.body)
 	;
 
 switch_condition
