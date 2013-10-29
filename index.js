@@ -27,4 +27,6 @@ var generated = escodegen.generate(parsed, {
 	sourceMapWithCode: true
 });
 
-fs.writeFile(destJsFilename, generated.code, encoding);
+fs.writeFile(destJsFilename, generated.code + '\n//# sourceMappingURL=sample.js.map', encoding);
+fs.writeFile(destMapFilename, generated.map, encoding);
+fs.writeFile('out/' + srcFilename, res, encoding);
