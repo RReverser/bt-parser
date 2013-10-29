@@ -11,14 +11,14 @@ function JB_UNION(binary) {
 }
 
 JB_UNION.prototype.read = function () {
-	var result = this.binary.apply(this.binary, arguments);
+	var result = this.binary.read.apply(this.binary, arguments);
 	this.end = Math.max(this.end, this.binary.tell());
-	this.seek(this.begin);
+	this.binary.seek(this.begin);
 	return result;
 };
 
 JB_UNION.prototype.done = function () {
-	this.seek(this.end);
+	this.binary.seek(this.end);
 };
 
 function JB_ENUM(obj) {
