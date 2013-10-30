@@ -65,7 +65,7 @@
 
 	var program = def('Program', ['body']);
 	var id = def('Identifier', ['name']);
-	var member = def('MemberExpression', ['object', 'property', 'computed']);
+	var member = def('MemberExpression', ['object', 'property', 'computed'], {computed: false});
 	var literal = def('Literal', ['value']);
 	var obj = def('ObjectExpression', function (properties) {
 		this.properties = properties.map(function (property) {
@@ -199,18 +199,18 @@
 
 	var jb_fitType = function (declaration, type) {
 		if ('jb_bits' in declaration) {
-			type = array(jb_type('bitfield'), declaration.jb_bits);
+			type = array([jb_type('bitfield'), declaration.jb_bits]);
 		} else {
 			if ('jb_args' in declaration) {
 				type = array([type].concat(declaration.jb_args));
 			}
 
 			if (declaration.jb_count !== undefined) {
-				type = array(
+				type = array([
 					literal('array'),
 					type,
 					declaration.jb_count
-				);
+				]);
 			}
 		}
 
@@ -385,7 +385,7 @@ vardef_file_items
 	: vardef_file_items ',' vardef_file_item {
 		$$.push($vardef_file_item);
 	}
-	| vardef_file_item -> [$1]
+	| vardef_file_item -> [$vardef_file_item]
 	;
 
 vardef_file_item
@@ -407,6 +407,7 @@ vardef_local_items
 
 vardef_local_item
 	: ident '=' e -> {id: $ident, init: $e}
+	| ident index -> {id: $ident, init: create(id('Array'), [$index])}
 	| ident -> {id: $ident}
 	;
 
