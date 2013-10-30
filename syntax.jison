@@ -37,8 +37,18 @@
 		Class.prototype.type = type;
 		Class.prototype.constructor = Class;
 		Object.defineProperty(Class.prototype, '__init__', {value: init});
-		Class.prototype.at = function (start, end) {
-			this.loc = {start: start, end: end};
+		Class.prototype.at = function (jisonLoc) {
+			this.loc = {
+				source: 'sample.bt',
+				start: {
+					line: jisonLoc.first_line,
+					column: jisonLoc.first_column
+				},
+				end: {
+					line: jisonLoc.last_line,
+					column: jisonLoc.last_column
+				}
+			};
 			return this;
 		};
 		Class.prototype.toString = function () { return '[' + this.type + ']' };
