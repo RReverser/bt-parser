@@ -228,7 +228,7 @@
 ('"'.*'"')|("'"."'")		return 'STRING';
 ('true'|'false')\b			return 'BOOL_CONST';
 ('if'|'else'|'do'|'while'|'return'|'local'|'struct'
-|'switch'|'case'|'break'|'default'|'for'|'typedef')\b
+|'switch'|'case'|'break'|'default'|'for'|'typedef'|'enum')\b
 							return yytext.toUpperCase();
 'const'						return 'LOCAL';
 'union'						return 'STRUCT';
@@ -238,10 +238,10 @@
 '++'|'--'					return 'OP_UPDATE';
 [+-]						return 'OP_ADD';
 '<<'|'>>'					return 'OP_SHIFT';
-[<>]'='?					return 'OP_RELATION';
+[<>]'='						return 'OP_RELATION';
 [!=]'='						return 'OP_EQUAL';
 [!~]						return 'OP_NOT';
-'&&'|'||'|[(){}\[\]:;,?&^|=\.]
+'&&'|'||'|[<>(){}\[\]:;,?&^|=\.]
 							return yytext;
 <<EOF>>						return 'EOF';
 
@@ -261,6 +261,8 @@
 %left '^'
 %left '&'
 %left OP_EQUAL
+%left '<'
+%left '>'
 %left OP_RELATION
 %left OP_SHIFT
 %left OP_ADD
@@ -307,6 +309,31 @@ literal
 
 struct
 	: STRUCT IDENT?[struct_name] argdefs?[struct_args] bblock -> jb_struct($STRUCT, $bblock, $struct_name, $struct_args)
+	;
+
+enum_type
+	: ENUM enum_basetype?[enum_base] IDENT?[enum_name] '{' enum_items '}' {
+		$$ = call(id('JB_ENUM'), [obj($enum_items)]);
+		if ($enum_name) {
+			$$ = assign(jb_type($enum_name), $$);
+		}
+	}
+	;
+
+enum_basetype
+	: '<' IDENT '>' -> jb_type($IDENT)
+	;
+
+enum_items
+	: enum_items ',' enum_item {
+		$enum_items.push($enum_item);
+	}
+	| enum_item -> [$enum_item]
+	;
+
+enum_item
+	: ident '=' e -> {key: $ident, value: $e}
+	| ident -> {key: $ident, value: id('undefined')}
 	;
 
 stmt
@@ -379,6 +406,7 @@ vardef
 vardef_file
 	: IDENT vardef_file_items -> {items: $vardef_file_items, type: jb_type($IDENT)}
 	| struct vardef_file_items -> {items: $vardef_file_items, type: $struct}
+	| enum_type vardef_file_items -> {items: $vardef_file_items, type: $enum_type}
 	;
 
 vardef_file_items
@@ -426,6 +454,8 @@ e
 	: e OP_ADD e -> binary($1, $2, $3)
 	| e OP_MUL e -> binary($1, $2, $3)
 	| e OP_SHIFT e -> binary($1, $2, $3)
+	| e '<' e -> binary($1, $2, $3)
+	| e '>' e -> binary($1, $2, $3)
 	| e OP_RELATION e -> binary($1, $2, $3)
 	| e OP_EQUAL e -> binary($1, $2 + '=', $3)
 	| e '&' e -> binary($1, $2, $3)

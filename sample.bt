@@ -98,3 +98,10 @@ struct Varray (int arraySize)
 Varray x(10), y(5);
 
 int x: 3, y: 5;
+
+enum {x = 1, y} a;
+enum MyEnum {x, y} b;
+enum <ushort> {x} c;
+enum <byte> SomeEnum {nul = 0, last = 255} d;
+typedef enum MyEnum2 {x, y} MyEnum3;
+typedef enum {x, y} MyEnum4;
