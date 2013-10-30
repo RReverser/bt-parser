@@ -32,3 +32,5 @@ function JB_ENUM(obj) {
 	}
 	return obj;
 }
+
+$TYPESET = $BINARY.typeSet;

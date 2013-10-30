@@ -7,27 +7,20 @@
 				args = Array.prototype.slice.call(arguments),
 				init = instance.__init__;
 
-			switch (typeof init) {
-				case 'function':
-					init.apply(instance, args);
-					break;
-
-				case 'string':
-					instance[init] = args;
-					break;
-
-				case 'object':
-					init.forEach(function (key, i) {
-						var value = args[i];
-						if (value === undefined) {
-							value = proto[key];
-							if (value !== null && typeof value === 'object') {
-								value = value instanceof Array ? value.slice() : Object.create(value);
-							}
+			if (init instanceof Function) {
+				init.apply(instance, args);
+			} else
+			if (init instanceof Array) {
+				init.forEach(function (key, i) {
+					var value = args[i];
+					if (value === undefined) {
+						value = proto[key];
+						if (value !== null && typeof value === 'object') {
+							value = value instanceof Array ? value.slice() : Object.create(value);
 						}
-						instance[key] = value;
-					});
-					break;
+					}
+					instance[key] = value;
+				});
 			}
 
 			return instance;
@@ -70,12 +63,12 @@
 		return Class;
 	}
 
-	var program = def('Program', 'body');
+	var program = def('Program', ['body']);
 	var id = def('Identifier', ['name']);
 	var member = def('MemberExpression', ['object', 'property', 'computed']);
 	var literal = def('Literal', ['value']);
-	var obj = def('ObjectExpression', function () {
-		this.properties = Array.prototype.map.call(arguments, function (property) {
+	var obj = def('ObjectExpression', function (properties) {
+		this.properties = properties.map(function (property) {
 			property.type = 'Property';
 			return property /* key, value */;
 		});
@@ -88,8 +81,8 @@
 	var create = def('NewExpression', ['callee', 'arguments'], {
 		arguments: []
 	});
-	var vars = def('VariableDeclaration', function () {
-		this.declarations = Array.prototype.map.call(arguments, function (declaration) {
+	var vars = def('VariableDeclaration', function (declarations) {
+		this.declarations = declarations.map(function (declaration) {
 			declaration.type = 'VariableDeclarator';
 			return declaration /* id, init */;
 		});
@@ -101,11 +94,11 @@
 		}
 	});
 	var stmt = def('ExpressionStatement', ['expression']);
-	var block = def('BlockStatement', 'body');
+	var block = def('BlockStatement', ['body']);
 	var ret = def('ReturnStatement', ['argument']);
 	var func = def('FunctionExpression', ['params', 'body']);
 	var funcdef = def('FunctionDeclaration', ['id', 'params', 'body']);
-	var array = def('ArrayExpression', 'elements');
+	var array = def('ArrayExpression', ['elements']);
 	var binary = def('BinaryExpression', ['left', 'operator', 'right']);
 	var unary = def('UnaryExpression', ['operator', 'argument'], {prefix: true});
 	var ternary = def('ConditionalExpression', ['test', 'consequent', 'alternate']);
@@ -132,7 +125,7 @@
 	};
 
 	var jb_struct = function (keyword, $block, defineId, args) {
-		var scope = obj(),
+		var scope = obj([]),
 			isUnion = keyword === 'union';
 
 		(function traverse(node) {
@@ -162,10 +155,10 @@
 		})($block);
 
 		if (isUnion) {
-			$block.body.unshift(vars({
+			$block.body.unshift(vars([{
 				id: id('$UNION'),
 				init: create(id('JB_UNION'), [id('$BINARY')])
-			}));
+			}]));
 
 			$block.body.push(stmt(call(
 				member(id('$UNION'), id('done'))
@@ -182,12 +175,12 @@
 		if (args) {
 			props.unshift({
 				key: id('params'),
-				value: array.apply(null, args.map(function (arg) {
+				value: array(args.map(function (arg) {
 					return literal(arg.name);
 				}))
 			});
 
-			$block.body.unshift(vars.apply(null, args.map(function (arg) {
+			$block.body.unshift(vars(args.map(function (arg) {
 				return {
 					id: arg,
 					init: member(self(), arg)
@@ -195,7 +188,7 @@
 			})));
 		}
 
-		var expr = call(member(id('jBinary'), id('Type')), [obj.apply(null, props)]);
+		var expr = call(member(id('jBinary'), id('Type')), [obj(props)]);
 
 		if (defineId) {
 			expr = assign(jb_type(defineId), expr);
@@ -209,7 +202,7 @@
 			type = array(jb_type('bitfield'), declaration.jb_bits);
 		} else {
 			if ('jb_args' in declaration) {
-				type = array.apply(null, [type].concat(declaration.jb_args));
+				type = array([type].concat(declaration.jb_args));
 			}
 
 			if (declaration.jb_count !== undefined) {
@@ -284,16 +277,12 @@
 program
 	: block EOF {
 		$block.type = 'Program';
-		$block.body.unshift(vars({
-			id: id('$TYPESET'),
-			init: member(id('$BINARY'), id('typeSet'))
-		}));
 		return $block;
 	}
 	;
 
 block
-	: stmt*[stmts] -> block.apply(null, $stmts)
+	: stmt*[stmts] -> block($stmts)
 	;
 
 bblock
@@ -382,9 +371,9 @@ vardef
 				$vardef_file.type
 			));
 		});
-		$$ = vars.apply(null, $vardef_file.items).toFileVars();
+		$$ = vars($vardef_file.items).toFileVars();
 	}
-	| vardef_local -> vars.apply(null, $vardef_local)
+	| vardef_local -> vars($vardef_local)
 	;
 
 vardef_file
