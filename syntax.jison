@@ -224,7 +224,8 @@
 '//'.*						/* skip one-line comments */
 '/*'[\s\S]*?'*/'			/* skip multi-line comments */
 \s+						    /* skip whitespace */
-\d+('.'\d+)?\b				return 'NUMBER';
+'0x'[A-Za-z0-9]+			return 'NUMBER';
+\d+('.'\d+)?				return 'NUMBER';
 ('"'.*'"')|("'"."'")		return 'STRING';
 ('true'|'false')\b			return 'BOOL_CONST';
 ('if'|'else'|'do'|'while'|'return'|'local'|'struct'
@@ -232,7 +233,7 @@
 							return yytext.toUpperCase();
 'const'						return 'LOCAL';
 'union'						return 'STRUCT';
-[\w][\w\d]*					return 'IDENT';
+[A-Za-z_][\w]*				return 'IDENT';
 ([+\-*/%&^|]|'<<'|'>>')'='	return 'OP_ASSIGN_COMPLEX';
 [*/]						return 'OP_MUL';
 '++'|'--'					return 'OP_UPDATE';
