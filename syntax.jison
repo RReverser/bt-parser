@@ -98,7 +98,9 @@
 	var ret = def('ReturnStatement', ['argument']);
 	var func = def('FunctionExpression', ['params', 'body']);
 	var funcdef = def('FunctionDeclaration', ['id', 'params', 'body']);
-	var array = def('ArrayExpression', ['elements']);
+	var array = def('ArrayExpression', ['elements'], {
+		elements: []
+	});
 	var binary = def('BinaryExpression', ['left', 'operator', 'right']);
 	var unary = def('UnaryExpression', ['operator', 'argument'], {prefix: true});
 	var ternary = def('ConditionalExpression', ['test', 'consequent', 'alternate']);
@@ -442,12 +444,9 @@ vardef_local_items
 
 vardef_local_item
 	: ident '=' e -> {id: $ident, init: $e}
+	| ident index '=' '{' arg_items?[args_opt] '}' -> {id: $ident, init: call(member(array($args_opt), id('concat')), [create(id('Array'), [binary($index, '-', literal(($args_opt || []).length))])])}
 	| ident index -> {id: $ident, init: create(id('Array'), [$index])}
 	| ident -> {id: $ident}
-	;
-
-args
-	: '(' arg_items?[args_opt] ')' -> $args_opt
 	;
 
 arg_items
@@ -478,7 +477,7 @@ e
 	| member OP_UPDATE -> update($member, $OP_UPDATE)
 	| e '?' e ':' e -> ternary($e1, $e2, $e3)
 	| '(' e ')' -> $e
-	| ident args -> call($ident, $args)
+	| ident '(' arg_items?[args_opt] ')' -> call($ident, $args_opt)
 	| member
 	| literal
 	;

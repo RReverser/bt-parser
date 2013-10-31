@@ -105,3 +105,5 @@ enum <ushort> {x} c;
 enum <byte> SomeEnum {nul = 0, last = 255} d;
 typedef enum MyEnum2 {x, y} MyEnum3;
 typedef enum {x, y} MyEnum4;
+
+local int x[10] = {1, 2, 3};
