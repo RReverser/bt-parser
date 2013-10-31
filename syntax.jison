@@ -306,8 +306,12 @@ member
 
 literal
 	: NUMBER -> literal(Number($NUMBER))
-	| STRING -> literal(JSON.parse('"' + $STRING.slice(1, -1) + '"'))
+	| string
 	| BOOL_CONST -> literal(Boolean($BOOL_CONST))
+	;
+
+string
+	: STRING -> literal(JSON.parse('"' + $STRING.slice(1, -1) + '"'))
 	;
 
 struct
@@ -445,6 +449,7 @@ vardef_local_items
 vardef_local_item
 	: ident '=' e -> {id: $ident, init: $e}
 	| ident index '=' '{' arg_items?[args_opt] '}' -> {id: $ident, init: call(member(array($args_opt), id('concat')), [create(id('Array'), [binary($index, '-', literal(($args_opt || []).length))])])}
+	| ident index '=' string -> {id: $ident, init: binary($string, '+', call(member(create(id('Array'), [binary($index, '-', literal($string.value.length - 1))]), id('join')), [literal('\0')]))}
 	| ident index -> {id: $ident, init: create(id('Array'), [$index])}
 	| ident -> {id: $ident}
 	;

@@ -107,3 +107,6 @@ typedef enum MyEnum2 {x, y} MyEnum3;
 typedef enum {x, y} MyEnum4;
 
 local int x[10] = {1, 2, 3};
+
+local string s1 = "123";
+local char s2[10] = "456";
