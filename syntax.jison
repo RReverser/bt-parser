@@ -226,7 +226,7 @@
 '//'.*						/* skip one-line comments */
 '/*'[\s\S]*?'*/'			/* skip multi-line comments */
 \s+						    /* skip whitespace */
-'0x'[A-Za-z0-9]+			return 'NUMBER';
+'0x'[A-Fa-f0-9]+			return 'NUMBER';
 \d+('.'\d+)?				return 'NUMBER';
 ('"'.*'"')|("'"."'")		return 'STRING';
 ('true'|'false')\b			return 'BOOL_CONST';
