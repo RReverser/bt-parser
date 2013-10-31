@@ -199,7 +199,7 @@
 
 	var jb_fitType = function (declaration, type) {
 		if ('jb_bits' in declaration) {
-			type = array([jb_type('bitfield'), declaration.jb_bits]);
+			type = declaration.jb_bits;
 		} else {
 			if ('jb_args' in declaration) {
 				type = array([type].concat(declaration.jb_args));
@@ -313,8 +313,13 @@ struct
 	;
 
 enum_type
-	: ENUM enum_basetype?[enum_base] IDENT?[enum_name] '{' enum_items '}' {
-		$$ = call(id('JB_ENUM'), [obj($enum_items)]);
+	: ENUM enum_basetype IDENT?[enum_name] '{' enum_items '}' {
+		$$ = array([
+			literal('enum'),
+			literal($enum_basetype),
+			call(id('JB_ENUM'), [obj($enum_items)])
+		]);
+
 		if ($enum_name) {
 			$$ = assign(jb_type($enum_name), $$);
 		}
@@ -322,7 +327,8 @@ enum_type
 	;
 
 enum_basetype
-	: '<' IDENT '>' -> jb_type($IDENT)
+	: '<' IDENT '>' -> $IDENT
+	| -> 'int'
 	;
 
 enum_items
@@ -405,7 +411,7 @@ vardef
 	;
 
 vardef_file
-	: IDENT vardef_file_items -> {items: $vardef_file_items, type: jb_type($IDENT)}
+	: IDENT vardef_file_items -> {items: $vardef_file_items, type: literal($IDENT)}
 	| struct vardef_file_items -> {items: $vardef_file_items, type: $struct}
 	| enum_type vardef_file_items -> {items: $vardef_file_items, type: $enum_type}
 	;
