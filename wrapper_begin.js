@@ -33,4 +33,13 @@ function JB_ENUM(obj) {
 	return obj;
 }
 
+function JB_ASSIGN_MEMBER(obj, prop, value) {
+	if (typeof obj === 'string') {
+		obj = obj.slice(0, prop) + value + obj.slice(prop + 1);
+	} else {
+		obj[prop] = value;
+	}
+	return obj;
+}
+
 $TYPESET = $BINARY.typeSet;

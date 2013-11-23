@@ -220,11 +220,12 @@
 	};
 
 	var jb_processLoopVars = function (loop) {
-		var decls = {}, refs = {};
+		var decls = {}, refs = {}, hasDeclarations = false;
 
 		(function traverse(node) {
 			if (node.type === 'VariableDeclaration') {
 				if (node.jb_isFile) {
+					hasDeclarations = true;
 					node.declarations.forEach(function (decl) {
 						decls[decl.id.name] = decl;
 						traverse(decl.init);
@@ -239,6 +240,10 @@
 				}
 			}
 		})(loop.body);
+
+		if (!hasDeclarations) {
+			return loop;
+		}
 
 		for (var name in decls) {
 			loop.body.body.push(stmt(call(
@@ -517,7 +522,9 @@ e
 	| e '&&' e -> binary($1, $2, $3)
 	| e '||' e -> binary($1, $2, $3)
 	| member OP_ASSIGN_COMPLEX e -> assign($member, $e, $OP_ASSIGN_COMPLEX)
-	| member '=' e -> assign($member, $e)
+	| member '=' e {
+		$$ = $member.computed ? assign($member.object, call(id('JB_ASSIGN_MEMBER'), [$member.object, $member.property, $e])) : assign($member, $e);
+	}
 	| OP_NOT e -> unary($OP_NOT, $e)
 	| OP_ADD e -> unary($OP_ADD, $e)
 	| OP_UPDATE member -> update($member, $OP_UPDATE, true)
