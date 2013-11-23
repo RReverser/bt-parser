@@ -98,7 +98,9 @@
 	var ret = def('ReturnStatement', ['argument']);
 	var func = def('FunctionExpression', ['params', 'body']);
 	var funcdef = def('FunctionDeclaration', ['id', 'params', 'body']);
-	var array = def('ArrayExpression', ['elements']);
+	var array = def('ArrayExpression', ['elements'], {
+		elements: []
+	});
 	var binary = def('BinaryExpression', ['left', 'operator', 'right']);
 	var unary = def('UnaryExpression', ['operator', 'argument'], {prefix: true});
 	var ternary = def('ConditionalExpression', ['test', 'consequent', 'alternate']);
@@ -199,7 +201,7 @@
 
 	var jb_fitType = function (declaration, type) {
 		if ('jb_bits' in declaration) {
-			type = array([jb_type('bitfield'), declaration.jb_bits]);
+			type = declaration.jb_bits;
 		} else {
 			if ('jb_args' in declaration) {
 				type = array([type].concat(declaration.jb_args));
@@ -266,7 +268,7 @@
 '//'.*						/* skip one-line comments */
 '/*'[\s\S]*?'*/'			/* skip multi-line comments */
 \s+						    /* skip whitespace */
-'0x'[A-Za-z0-9]+			return 'NUMBER';
+'0x'[A-Fa-f0-9]+			return 'NUMBER';
 \d+('.'\d+)?				return 'NUMBER';
 ('"'.*'"')|("'"."'")		return 'STRING';
 ('true'|'false')\b			return 'BOOL_CONST';
@@ -346,8 +348,12 @@ member
 
 literal
 	: NUMBER -> literal(Number($NUMBER))
-	| STRING -> literal(JSON.parse('"' + $STRING.slice(1, -1) + '"'))
+	| string
 	| BOOL_CONST -> literal(Boolean($BOOL_CONST))
+	;
+
+string
+	: STRING -> literal(JSON.parse('"' + $STRING.slice(1, -1) + '"'))
 	;
 
 struct
@@ -355,8 +361,13 @@ struct
 	;
 
 enum_type
-	: ENUM enum_basetype?[enum_base] IDENT?[enum_name] '{' enum_items '}' {
-		$$ = call(id('JB_ENUM'), [obj($enum_items)]);
+	: ENUM enum_basetype IDENT?[enum_name] '{' enum_items '}' {
+		$$ = array([
+			literal('enum'),
+			literal($enum_basetype),
+			call(id('JB_ENUM'), [obj($enum_items)])
+		]);
+
 		if ($enum_name) {
 			$$ = assign(jb_type($enum_name), $$);
 		}
@@ -364,7 +375,8 @@ enum_type
 	;
 
 enum_basetype
-	: '<' IDENT '>' -> jb_type($IDENT)
+	: '<' IDENT '>' -> $IDENT
+	| -> 'int'
 	;
 
 enum_items
@@ -447,7 +459,7 @@ vardef
 	;
 
 vardef_file
-	: IDENT vardef_file_items -> {items: $vardef_file_items, type: jb_type($IDENT)}
+	: IDENT vardef_file_items -> {items: $vardef_file_items, type: literal($IDENT)}
 	| struct vardef_file_items -> {items: $vardef_file_items, type: $struct}
 	| enum_type vardef_file_items -> {items: $vardef_file_items, type: $enum_type}
 	;
@@ -478,12 +490,10 @@ vardef_local_items
 
 vardef_local_item
 	: ident '=' e -> {id: $ident, init: $e}
+	| ident index '=' '{' arg_items?[args_opt] '}' -> {id: $ident, init: call(member(array($args_opt), id('concat')), [create(id('Array'), [binary($index, '-', literal(($args_opt || []).length))])])}
+	| ident index '=' string -> {id: $ident, init: binary($string, '+', call(member(create(id('Array'), [binary($index, '-', literal($string.value.length - 1))]), id('join')), [literal('\0')]))}
 	| ident index -> {id: $ident, init: create(id('Array'), [$index])}
 	| ident -> {id: $ident}
-	;
-
-args
-	: '(' arg_items?[args_opt] ')' -> $args_opt
 	;
 
 arg_items
@@ -514,7 +524,7 @@ e
 	| member OP_UPDATE -> update($member, $OP_UPDATE)
 	| e '?' e ':' e -> ternary($e1, $e2, $e3)
 	| '(' e ')' -> $e
-	| ident args -> call($ident, $args)
+	| ident '(' arg_items?[args_opt] ')' -> call($ident, $args_opt)
 	| member
 	| literal
 	;
