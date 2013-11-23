@@ -90,6 +90,9 @@
 		kind: 'var',
 		toFileVars: function () {
 			this.jb_isFile = true;
+			this.declarations.forEach(function (declaration) {
+				declaration.init = call(id('JB_DECLARE'), [declaration.id, jb_valueOf(declaration.init)]);
+			});
 			return this;
 		}
 	});
@@ -219,51 +222,8 @@
 		return type;
 	};
 
-	var jb_processLoopVars = function (loop) {
-		var decls = {}, refs = {}, hasDeclarations = false;
-
-		(function traverse(node) {
-			if (node.type === 'VariableDeclaration') {
-				if (node.jb_isFile) {
-					hasDeclarations = true;
-					node.declarations.forEach(function (decl) {
-						decls[decl.id.name] = decl;
-						traverse(decl.init);
-					});
-				}
-			} else {
-				for (var name in node) {
-					var subNode = node[name];
-					if (typeof subNode === 'object') {
-						traverse(subNode);
-					}
-				}
-			}
-		})(loop.body);
-
-		if (!hasDeclarations) {
-			return loop;
-		}
-
-		for (var name in decls) {
-			loop.body.body.push(stmt(call(
-				member(id(name + '_array'), id('push')),
-				[decls[name].id]
-			)));
-		}
-
-		var $block = block([
-			vars(Object.keys(decls).map(function (name) {
-				return {id: id(name + '_array'), init: array([])}
-			})),
-			loop
-		]);
-
-		Object.keys(decls).forEach(function (name) {
-			$block.body.push(stmt(assign(decls[name].id, id(name + '_array'))));
-		});
-
-		return $block;
+	var jb_valueOf = function (e) {
+		return e && e.type === 'Identifier' ? call(id('JB_VALUEOF'), [e]) : e;
 	};
 %}
 
@@ -290,7 +250,8 @@
 '<<'|'>>'					return 'OP_SHIFT';
 [<>]'='						return 'OP_RELATION';
 [!=]'='						return 'OP_EQUAL';
-[!~]						return 'OP_NOT';
+'!'							return 'OP_NOT';
+'~'							return 'OP_INVERSE';
 '&&'|'||'|[<>(){}\[\]:;,?&^|=\.]
 							return yytext;
 <<EOF>>						return 'EOF';
@@ -399,9 +360,9 @@ enum_item
 stmt
 	: IF '(' e ')' stmt ELSE stmt -> cond($e, $stmt1, $stmt2)
 	| IF '(' e ')' stmt -> cond($e, $stmt)
-	| WHILE '(' e ')' stmt -> jb_processLoopVars(while_do($e, $stmt))
-	| DO stmt WHILE '(' e ')' -> jb_processLoopVars(do_while($stmt, $e))
-	| FOR '(' e ';' e ';' e ')' stmt -> jb_processLoopVars(for_cond($e1, $e2, $e3, $stmt))
+	| WHILE '(' e ')' stmt -> while_do($e, $stmt)
+	| DO stmt WHILE '(' e ')' -> do_while($stmt, $e)
+	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, $e2, $e3, $stmt)
 	| struct ';' -> stmt($struct)
 	| TYPEDEF vardef_file ';' {
 		var firstItem = $vardef_file.items[0];
@@ -515,17 +476,23 @@ e
 	| e '<' e -> binary($1, $2, $3)
 	| e '>' e -> binary($1, $2, $3)
 	| e OP_RELATION e -> binary($1, $2, $3)
-	| e OP_EQUAL e -> binary($1, $2 + '=', $3)
+	| e OP_EQUAL e -> binary($1, $2, $3)
 	| e '&' e -> binary($1, $2, $3)
 	| e '^' e -> binary($1, $2, $3)
 	| e '|' e -> binary($1, $2, $3)
-	| e '&&' e -> binary($1, $2, $3)
-	| e '||' e -> binary($1, $2, $3)
-	| member OP_ASSIGN_COMPLEX e -> assign($member, $e, $OP_ASSIGN_COMPLEX)
+	| e '&&' e -> binary(jb_valueOf($1), $2, jb_valueOf($3))
+	| e '||' e -> binary(jb_valueOf($1), $2, jb_valueOf($3))
+	| member OP_ASSIGN_COMPLEX e -> assign($member, jb_valueOf($e), $OP_ASSIGN_COMPLEX)
 	| member '=' e {
-		$$ = $member.computed ? assign($member.object, call(id('JB_ASSIGN_MEMBER'), [$member.object, $member.property, $e])) : assign($member, $e);
+		if ($member.computed) {
+			$e = call(id('JB_ASSIGN_MEMBER'), [$member.object, $member.property, $e]);
+			$member = $member.object;
+		}
+
+		$$ = assign($member, jb_valueOf($e));
 	}
-	| OP_NOT e -> unary($OP_NOT, $e)
+	| OP_NOT e -> unary($OP_NOT, jb_valueOf($e))
+	| OP_INVERSE e -> unary($OP_INVERSE, $e)
 	| OP_ADD e -> unary($OP_ADD, $e)
 	| OP_UPDATE member -> update($member, $OP_UPDATE, true)
 	| member OP_UPDATE -> update($member, $OP_UPDATE)

@@ -33,6 +33,27 @@ function JB_ENUM(obj) {
 	return obj;
 }
 
+function JB_DECLARE(oldValue, newValue) {
+	if (oldValue === undefined) {
+		return newValue;
+	} else {
+		if (oldValue !== null && oldValue.jb_isMultiple) {
+			oldValue.push(newValue);
+		} else {
+			oldValue = [oldValue, newValue];
+			oldValue.jb_isMultiple = true;
+			oldValue.valueOf = function () {
+				return this[this.length - 1];
+			};
+		}
+		return oldValue;
+	}
+}
+
+function JB_VALUEOF(value) {
+	return typeof value === 'object' && value !== null ? value.valueOf() : value;
+}
+
 function JB_ASSIGN_MEMBER(obj, prop, value) {
 	if (typeof obj === 'string') {
 		obj = obj.slice(0, prop) + value + obj.slice(prop + 1);
