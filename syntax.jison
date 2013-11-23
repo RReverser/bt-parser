@@ -91,7 +91,7 @@
 		toFileVars: function () {
 			this.jb_isFile = true;
 			this.declarations.forEach(function (declaration) {
-				declaration.init = call(id('JB_DECLARE'), [declaration.id, jb_valueOf(declaration.init)]);
+				declaration.init = call(id('JB_DECLARE'), [declaration.id, declaration.init]);
 			});
 			return this;
 		}
@@ -482,14 +482,14 @@ e
 	| e '|' e -> binary($1, $2, $3)
 	| e '&&' e -> binary(jb_valueOf($1), $2, jb_valueOf($3))
 	| e '||' e -> binary(jb_valueOf($1), $2, jb_valueOf($3))
-	| member OP_ASSIGN_COMPLEX e -> assign($member, jb_valueOf($e), $OP_ASSIGN_COMPLEX)
+	| member OP_ASSIGN_COMPLEX e -> assign($member, $e, $OP_ASSIGN_COMPLEX)
 	| member '=' e {
 		if ($member.computed) {
 			$e = call(id('JB_ASSIGN_MEMBER'), [$member.object, $member.property, $e]);
 			$member = $member.object;
 		}
 
-		$$ = assign($member, jb_valueOf($e));
+		$$ = assign($member, $e);
 	}
 	| OP_NOT e -> unary($OP_NOT, jb_valueOf($e))
 	| OP_INVERSE e -> unary($OP_INVERSE, $e)
