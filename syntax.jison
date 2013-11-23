@@ -358,11 +358,11 @@ enum_item
 	;
 
 stmt
-	: IF '(' e ')' stmt ELSE stmt -> cond($e, $stmt1, $stmt2)
-	| IF '(' e ')' stmt -> cond($e, $stmt)
-	| WHILE '(' e ')' stmt -> while_do($e, $stmt)
-	| DO stmt WHILE '(' e ')' -> do_while($stmt, $e)
-	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, $e2, $e3, $stmt)
+	: IF '(' e ')' stmt ELSE stmt -> cond(jb_valueOf($e), $stmt1, $stmt2)
+	| IF '(' e ')' stmt -> cond(jb_valueOf($e), $stmt)
+	| WHILE '(' e ')' stmt -> while_do(jb_valueOf($e), $stmt)
+	| DO stmt WHILE '(' e ')' -> do_while($stmt, jb_valueOf($e))
+	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, jb_valueOf($e2), $e3, $stmt)
 	| struct ';' -> stmt($struct)
 	| TYPEDEF vardef_file ';' {
 		var firstItem = $vardef_file.items[0];
@@ -496,7 +496,7 @@ e
 	| OP_ADD e -> unary($OP_ADD, $e)
 	| OP_UPDATE member -> update($member, $OP_UPDATE, true)
 	| member OP_UPDATE -> update($member, $OP_UPDATE)
-	| e '?' e ':' e -> ternary($e1, $e2, $e3)
+	| e '?' e ':' e -> ternary(jb_valueOf($e1), $e2, $e3)
 	| '(' e ')' -> $e
 	| ident '(' arg_items?[args_opt] ')' -> call($ident, $args_opt)
 	| member
