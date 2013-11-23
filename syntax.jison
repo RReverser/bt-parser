@@ -216,6 +216,48 @@
 
 		return type;
 	};
+
+	var jb_processLoopVars = function (loop) {
+		var decls = {}, refs = {};
+
+		(function traverse(node) {
+			if (node.type === 'VariableDeclaration') {
+				if (node.jb_isFile) {
+					node.declarations.forEach(function (decl) {
+						decls[decl.id.name] = decl;
+						traverse(decl.init);
+					});
+				}
+			} else {
+				for (var name in node) {
+					var subNode = node[name];
+					if (typeof subNode === 'object') {
+						traverse(subNode);
+					}
+				}
+			}
+		})(loop.body);
+
+		for (var name in decls) {
+			loop.body.body.push(stmt(call(
+				member(id(name + '_array'), id('push')),
+				[decls[name].id]
+			)));
+		}
+
+		var $block = block([
+			vars(Object.keys(decls).map(function (name) {
+				return {id: id(name + '_array'), init: array([])}
+			})),
+			loop
+		]);
+
+		Object.keys(decls).forEach(function (name) {
+			$block.body.push(stmt(assign(decls[name].id, id(name + '_array'))));
+		});
+
+		return $block;
+	};
 %}
 
 %lex
@@ -340,9 +382,9 @@ enum_item
 stmt
 	: IF '(' e ')' stmt ELSE stmt -> cond($e, $stmt1, $stmt2)
 	| IF '(' e ')' stmt -> cond($e, $stmt)
-	| WHILE '(' e ')' stmt -> while_do($e, $stmt)
-	| DO stmt WHILE '(' e ')' -> do_while($stmt, $e)
-	| FOR '(' e ';' e ';' e ')' stmt -> for_cond($e1, $e2, $e3, $stmt)
+	| WHILE '(' e ')' stmt -> jb_processLoopVars(while_do($e, $stmt))
+	| DO stmt WHILE '(' e ')' -> jb_processLoopVars(do_while($stmt, $e))
+	| FOR '(' e ';' e ';' e ')' stmt -> jb_processLoopVars(for_cond($e1, $e2, $e3, $stmt))
 	| struct ';' -> stmt($struct)
 	| TYPEDEF vardef_file ';' {
 		var firstItem = $vardef_file.items[0];
